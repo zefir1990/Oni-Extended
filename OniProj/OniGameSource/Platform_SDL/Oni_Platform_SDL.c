@@ -19,6 +19,10 @@
 #include <SDL2/SDL_keyboard.h>
 #include <SDL2/SDL_mouse.h>
 #include <SDL2/SDL_video.h>
+
+#ifdef __APPLE__
+#include "Oni_QuitShortcuts_macOS.h"
+#endif
 // ======================================================================
 // defines
 // ======================================================================
@@ -113,6 +117,10 @@ UUtError ONrPlatform_Initialize(
 	ONtPlatformData			*outPlatformData)
 {
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_TIMER);
+
+#ifdef __APPLE__
+	OniMac_DisableQuitShortcuts();
+#endif
 
 	// SDL2 enables text-input mode at video init, and while it's active the
 	// macOS backend routes every keyDown through the Cocoa text system

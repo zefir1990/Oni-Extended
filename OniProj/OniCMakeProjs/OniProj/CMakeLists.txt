@@ -574,6 +574,8 @@ if(Platform_SDL)
         target_sources(Oni PRIVATE
                 ../../OniGameSource/Platform_SDL/Oni_Cinematic_macOS.mm
                 ../../OniGameSource/Platform_SDL/Oni_Cinematic_macOS.h
+                ../../OniGameSource/Platform_SDL/Oni_QuitShortcuts_macOS.mm
+                ../../OniGameSource/Platform_SDL/Oni_QuitShortcuts_macOS.h
                 ../../OniGameSource/Platform_SDL/Oni_DataSetup_macOS.mm
                 ../../OniGameSource/Platform_SDL/Oni_DataSetup_macOS.h
                 ../../OniGameSource/Platform_SDL/Oni_RendererSelect_macOS.mm
@@ -591,6 +593,7 @@ if(Platform_SDL)
                 ../../../BungieFrameWork/BFW_Source/BFW_Motoko/Engines/DrawEngine/Metal/metal_shaders.h)
         set_source_files_properties(
                 ../../OniGameSource/Platform_SDL/Oni_Cinematic_macOS.mm
+                ../../OniGameSource/Platform_SDL/Oni_QuitShortcuts_macOS.mm
                 ../../OniGameSource/Platform_SDL/Oni_DataSetup_macOS.mm
                 ../../OniGameSource/Platform_SDL/Oni_RendererSelect_macOS.mm
                 ../../OniGameSource/Platform_SDL/Oni_UpdateCheck_macOS.mm
