@@ -378,11 +378,91 @@ int main(void)
 	fclose(file);
 	CHECK(ONrQuickSave_ReadFromPath(path, &loaded) == UUcFalse, "read garbage");
 
+	// --- ExistsAtPath: the header predicate, paired against ReadFromPath ---
+	remove(path);
+	CHECK(ONrQuickSave_ExistsAtPath(NULL) == UUcFalse, "exists NULL path");
+	CHECK(ONrQuickSave_ExistsAtPath(path) == UUcFalse, "exists missing file");
+	CHECK(ONrQuickSave_ReadFromPath(path, &loaded) == UUcFalse, "read missing file, paired");
+
+	file = fopen(path, "wb");
+	fclose(file);
+	CHECK(ONrQuickSave_ExistsAtPath(path) == UUcFalse, "exists empty file");
+	CHECK(ONrQuickSave_ReadFromPath(path, &loaded) == UUcFalse, "read empty file, paired");
+
+	file = fopen(path, "wb");
+	fputs("QS", file);
+	fclose(file);
+	CHECK(ONrQuickSave_ExistsAtPath(path) == UUcFalse, "exists truncated header");
+	CHECK(ONrQuickSave_ReadFromPath(path, &loaded) == UUcFalse, "read truncated header, paired");
+
+	file = fopen(path, "wb");
+	for (itr = 0; itr < 4096; itr++) { fputc('m', file); }
+	fclose(file);
+	CHECK(ONrQuickSave_ExistsAtPath(path) == UUcFalse, "exists garbage");
+	CHECK(ONrQuickSave_ReadFromPath(path, &loaded) == UUcFalse, "read garbage, paired");
+
+	FillSave(&save, 4, 2, 3, 1);
+	CHECK(ONrQuickSave_WriteToPath(path, &save) == UUcTrue, "write for exists test");
+	CHECK(ONrQuickSave_ExistsAtPath(path) == UUcTrue, "exists valid file");
+	CHECK(ONrQuickSave_ReadFromPath(path, &loaded) == UUcTrue, "read valid file, paired");
+
+	PatchUns32(path, HEADER_VERSION_OFFSET, 99);
+	CHECK(ONrQuickSave_ExistsAtPath(path) == UUcFalse, "exists rejects version mismatch");
+	CHECK(ONrQuickSave_ReadFromPath(path, &loaded) == UUcFalse, "read rejects version mismatch, paired");
+	PatchUns32(path, HEADER_VERSION_OFFSET, 1);
+
+	{
+		UUtUns32 swap_code = ReadUns32(path, HEADER_SWAP_CODE_OFFSET);
+
+		PatchUns32(path, HEADER_SWAP_CODE_OFFSET, swap_code ^ 0xFFFFFFFFu);
+		CHECK(ONrQuickSave_ExistsAtPath(path) == UUcFalse, "exists rejects swap code mismatch");
+		CHECK(ONrQuickSave_ReadFromPath(path, &loaded) == UUcFalse, "read rejects swap code mismatch, paired");
+		PatchUns32(path, HEADER_SWAP_CODE_OFFSET, swap_code);
+	}
+
+	PatchUns32(path, HEADER_CHARACTER_COUNT_OFFSET, ONcQuickSave_MaxCharacters + 1);
+	CHECK(ONrQuickSave_ExistsAtPath(path) == UUcFalse, "exists rejects oversized count");
+	CHECK(ONrQuickSave_ReadFromPath(path, &loaded) == UUcFalse, "read rejects oversized count, paired");
+	PatchUns32(path, HEADER_CHARACTER_COUNT_OFFSET, 4);
+	CHECK(ONrQuickSave_ExistsAtPath(path) == UUcTrue, "exists accepts restored file");
+	CHECK(ONrQuickSave_ReadFromPath(path, &loaded) == UUcTrue, "read accepts restored file, paired");
+
+	// A file with an intact header and a short record run is the one place
+	// the two predicates must disagree: ExistsAtPath is header-only by
+	// design, because its caller only needs to know whether to offer a
+	// load, and paying for the record run to answer that is the cost this
+	// predicate exists to avoid. Pinned so it cannot silently become strict.
+	{
+		long file_size;
+		long keep;
+		char *buffer;
+
+		file = fopen(path, "rb");
+		fseek(file, 0, SEEK_END);
+		file_size = ftell(file);
+		fclose(file);
+
+		keep = file_size - 4;
+		buffer = (char *) malloc((size_t) keep);
+		file = fopen(path, "rb");
+		if (fread(buffer, 1, (size_t) keep, file) != (size_t) keep) { printf("short read\n"); }
+		fclose(file);
+		file = fopen(path, "wb");
+		if (fwrite(buffer, 1, (size_t) keep, file) != (size_t) keep) { printf("short write\n"); }
+		fclose(file);
+		free(buffer);
+
+		CHECK(ONrQuickSave_ExistsAtPath(path) == UUcTrue, "exists accepts short record run");
+		CHECK(ONrQuickSave_ReadFromPath(path, &loaded) == UUcFalse, "read rejects short record run");
+	}
+
 	// --- Resolver-backed wrappers (via the stub above) ---
 	remove(path);
 	CHECK(ONrQuickSave_Read(&loaded) == UUcFalse, "wrapper read missing");
+	CHECK(ONrQuickSave_Exists() == UUcFalse, "wrapper exists missing");
 	FillSave(&save, 2, 1, 1, 1);
 	CHECK(ONrQuickSave_Write(&save) == UUcTrue, "wrapper write");
+	CHECK(ONrQuickSave_Exists() == UUcTrue, "wrapper exists");
 	CHECK(ONrQuickSave_Read(&loaded) == UUcTrue, "wrapper read");
 	CHECK(loaded.levelNumber == 7, "wrapper level number");
 	CHECK(loaded.characterCount == 2, "wrapper character count");

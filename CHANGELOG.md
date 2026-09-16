@@ -49,6 +49,11 @@ GitHub release notes and gets stamped with the version + date.
   state its designer placed — and then puts your changes back on top: doors
   you opened or unlocked, glass you broke, and every enemy with the health
   and position you left them at, dead ones included.
+- You no longer need to know the keys. The Data Pad (**F1**) now has **Quick
+  Save** and **Quick Load** buttons in its left column, under **Help**, and
+  pressing either one closes the pad and does the work. **Quick Load** is
+  greyed out until you have something to load, so it can't do anything
+  surprising on a fresh install.
 - It snapshots the world, not time. Scripts you already triggered will run
   again, enemies will work out their tactics from scratch, and the level's
   clock starts over.

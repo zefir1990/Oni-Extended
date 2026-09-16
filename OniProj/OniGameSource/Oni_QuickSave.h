@@ -136,10 +136,12 @@ void ONrQuickSave_Clear(ONtQuickSave *outSave);
 // UUcTrue.
 UUtBool ONrQuickSave_WriteToPath(const char *inPath, const ONtQuickSave *inSave);
 UUtBool ONrQuickSave_ReadFromPath(const char *inPath, ONtQuickSave *outSave);
+UUtBool ONrQuickSave_ExistsAtPath(const char *inPath);
 
 // Resolver-backed forms used by the engine.
 UUtBool ONrQuickSave_Write(const ONtQuickSave *inSave);
 UUtBool ONrQuickSave_Read(ONtQuickSave *outSave);
+UUtBool ONrQuickSave_Exists(void);
 
 #ifdef __cplusplus
 }

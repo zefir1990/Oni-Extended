@@ -65,6 +65,25 @@ static UUtBool ONiQuickSave_CountsFit(const ONtQuickSave_Header *inHeader)
 		&& (inHeader->corpseCount <= ONcQuickSave_MaxCorpses);
 }
 
+static UUtBool ONiQuickSave_ReadHeader(FILE *inFile, ONtQuickSave_Header *outHeader)
+{
+	UUrMemory_Clear(outHeader, sizeof(*outHeader));
+
+	if (1 != fread(outHeader, sizeof(*outHeader), 1, inFile)) {
+		return UUcFalse;
+	}
+
+	if (ONcQuickSave_Version != outHeader->version) {
+		return UUcFalse;
+	}
+
+	if (ONcQuickSave_SwapCode != outHeader->swapCode) {
+		return UUcFalse;
+	}
+
+	return ONiQuickSave_CountsFit(outHeader);
+}
+
 void ONrQuickSave_Clear(ONtQuickSave *outSave)
 {
 	if (NULL == outSave) {
@@ -128,11 +147,7 @@ UUtBool ONrQuickSave_ReadFromPath(const char *inPath, ONtQuickSave *outSave)
 		return UUcFalse;
 	}
 
-	UUrMemory_Clear(&header, sizeof(header));
-	if (1 != fread(&header, sizeof(header), 1, file)) { goto exit; }
-	if (ONcQuickSave_Version != header.version) { goto exit; }
-	if (ONcQuickSave_SwapCode != header.swapCode) { goto exit; }
-	if (!ONiQuickSave_CountsFit(&header)) { goto exit; }
+	if (!ONiQuickSave_ReadHeader(file, &header)) { goto exit; }
 
 	ONrQuickSave_Clear(outSave);
 	outSave->levelNumber = header.levelNumber;
@@ -156,6 +171,29 @@ exit:
 	return succeeded;
 }
 
+UUtBool ONrQuickSave_ExistsAtPath(const char *inPath)
+{
+	ONtQuickSave_Header header;
+	FILE *file;
+	UUtBool exists = UUcFalse;
+
+	if (NULL == inPath) {
+		return UUcFalse;
+	}
+
+	file = fopen(inPath, "rb");
+	if (NULL == file) {
+		return UUcFalse;
+	}
+
+	if (ONiQuickSave_ReadHeader(file, &header)) {
+		exists = UUcTrue;
+	}
+
+	fclose(file);
+	return exists;
+}
+
 UUtBool ONrQuickSave_Write(const ONtQuickSave *inSave)
 {
 	char path[ONcQuickSave_PathLength];
@@ -176,6 +214,17 @@ UUtBool ONrQuickSave_Read(ONtQuickSave *outSave)
 	}
 
 	return ONrQuickSave_ReadFromPath(path, outSave);
+}
+
+UUtBool ONrQuickSave_Exists(void)
+{
+	char path[ONcQuickSave_PathLength];
+
+	if (UUcError_None != ONiBundlePath_ResolveStateFile(ONcQuickSave_FileName, path, sizeof(path))) {
+		return UUcFalse;
+	}
+
+	return ONrQuickSave_ExistsAtPath(path);
 }
 
 // ======================================================================

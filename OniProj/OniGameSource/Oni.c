@@ -900,6 +900,12 @@ ONiRunGame(
 				break;
 		}
 
+		if (ONgGameState->local.pending_quick_save) {
+			ONgGameState->local.pending_quick_save = UUcFalse;
+
+			ONrGameState_QuickSave();
+		}
+
 		if (ONgGameState->local.pending_quick_load) {
 			ONgGameState->local.pending_quick_load = UUcFalse;
 

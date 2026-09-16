@@ -18,6 +18,7 @@
 #include "Oni_GameState.h"
 #include "Oni_GameStatePrivate.h"
 #include "Oni_InGameUI.h"
+#include "Oni_QuickSave.h"
 #include "Oni_Sound2.h"
 #include "Oni_Persistance.h"
 
@@ -179,8 +180,8 @@ enum
 	ONcPS_Btn_Next				= 107,
 	ONcPS_Txt_MainArea			= 110,
 	ONcPS_Txt_SubArea			= 111,
-	ONcPS_Btn_HelpPrevious		= 112,
-	ONcPS_Btn_HelpNext			= 113,
+	ONcPS_Btn_QuickSave			= 112,
+	ONcPS_Btn_QuickLoad			= 113,
 	ONcPS_Box_SubArea			= 120
 };
 
@@ -264,6 +265,8 @@ typedef struct ONtPauseScreenData
 	ONtHelpPage					*help[ONcIGU_MaxHelpPages];
 	UUtInt16					num_help_pages;
 	UUtInt16					help_page_num;
+
+	UUtBool						quick_load_available;
 
 } ONtPauseScreenData;
 
@@ -2463,13 +2466,6 @@ ONiPS_ShowHintArea(
 	WMrWindow_SetVisible(next, inShow);
 	WMrWindow_SetVisible(hint_text, inShow);
 	WMrWindow_SetVisible(hint_box, inShow);
-
-	prev = WMrDialog_GetItemByID(inDialog, ONcPS_Btn_HelpPrevious);
-	next = WMrDialog_GetItemByID(inDialog, ONcPS_Btn_HelpNext);
-
-// remove the UUcFalse if you want to have multiple pages for help
-	WMrWindow_SetVisible(prev, UUcFalse/*!inShow*/);
-	WMrWindow_SetVisible(next, UUcFalse/*!inShow*/);
 }
 
 // ----------------------------------------------------------------------
@@ -2549,22 +2545,12 @@ ONiPS_EnableButtons(
 		break;
 
 		case ONcPSState_Help:
-// enable this code if you are going to use multiple help pages
-/*			if (inData->num_help_pages == 0)
-			{
-				prev_on = UUcFalse;
-				next_on = UUcFalse;
-				break;
-			}
-			prev = WMrDialog_GetItemByID(inDialog, ONcPS_Btn_HelpPrevious);
-			next = WMrDialog_GetItemByID(inDialog, ONcPS_Btn_HelpNext);
-			if (inData->help_page_num == 0) { prev_on = UUcFalse; }
-			if (inData->help_page_num + 1 >= inData->num_help_pages) { next_on = UUcFalse; }*/
 		break;
 	}
 
 	WMrWindow_SetEnabled(prev, prev_on);
 	WMrWindow_SetEnabled(next, next_on);
+	WMrWindow_SetEnabled(WMrDialog_GetItemByID(inDialog, ONcPS_Btn_QuickLoad), inData->quick_load_available);
 }
 
 // ----------------------------------------------------------------------
@@ -3337,6 +3323,62 @@ ONiPS_Next(
 
 // ----------------------------------------------------------------------
 static void
+ONiPS_PlaceQuickSaveButton(
+	WMtWindow					*inButton,
+	const char					*inTitle,
+	const UUtRect				*inAnchorRect,
+	UUtInt16					inRowPitch,
+	UUtInt16					inRow)
+{
+	WMtWindow					*parent;
+	UUtRect						parent_rect;
+
+	WMrWindow_SetTitle(inButton, inTitle, WMcMaxTitleLength);
+
+	parent = WMrWindow_GetParent(inButton);
+	WMrWindow_GetRect(parent, &parent_rect);
+
+	WMrWindow_SetLocation(
+		inButton,
+		(UUtInt16)(inAnchorRect->left - parent_rect.left),
+		(UUtInt16)(inAnchorRect->top + (inRowPitch * inRow) - parent_rect.top));
+
+	WMrWindow_SetVisible(inButton, UUcTrue);
+}
+
+// ----------------------------------------------------------------------
+static void
+ONiPS_PlaceQuickSaveButtons(
+	WMtDialog					*inDialog)
+{
+	WMtWindow					*quick_save;
+	WMtWindow					*quick_load;
+	WMtWindow					*help;
+	WMtWindow					*diary;
+	UUtRect						help_rect;
+	UUtRect						diary_rect;
+	UUtInt16					row_pitch;
+
+	quick_save = WMrDialog_GetItemByID(inDialog, ONcPS_Btn_QuickSave);
+	quick_load = WMrDialog_GetItemByID(inDialog, ONcPS_Btn_QuickLoad);
+	help = WMrDialog_GetItemByID(inDialog, ONcPS_Btn_Help);
+	diary = WMrDialog_GetItemByID(inDialog, ONcPS_Btn_Diary);
+
+	if ((NULL == quick_save) || (NULL == quick_load) || (NULL == help) || (NULL == diary)) {
+		UUrStartupMessage("pause screen: quick save/load controls absent from the dialog template");
+		return;
+	}
+
+	WMrWindow_GetRect(help, &help_rect);
+	WMrWindow_GetRect(diary, &diary_rect);
+	row_pitch = (UUtInt16)(help_rect.top - diary_rect.top);
+
+	ONiPS_PlaceQuickSaveButton(quick_save, "Quick Save", &help_rect, row_pitch, 1);
+	ONiPS_PlaceQuickSaveButton(quick_load, "Quick Load", &help_rect, row_pitch, 2);
+}
+
+// ----------------------------------------------------------------------
+static void
 ONiPauseScreen_InitDialog(
 	WMtDialog					*inDialog)
 {
@@ -3383,6 +3425,12 @@ ONiPauseScreen_InitDialog(
 
 	// hide the hint area
 	ONiPS_ShowHintArea(inDialog, data, UUcTrue);
+
+	// cache whether there is a quick save to load while the pad is up
+	data->quick_load_available = ONrQuickSave_Exists();
+
+	// add the quick save / quick load buttons to the left column
+	ONiPS_PlaceQuickSaveButtons(inDialog);
 
 	// enable the buttons
 	ONiPS_EnableButtons(inDialog, data);
@@ -3501,13 +3549,21 @@ ONiPauseScreen_HandleCommand(
 		break;
 
 		case ONcPS_Btn_Previous:
-		case ONcPS_Btn_HelpPrevious:
 			ONiPS_Previous(inDialog, data);
 		break;
 
 		case ONcPS_Btn_Next:
-		case ONcPS_Btn_HelpNext:
 			ONiPS_Next(inDialog, data);
+		break;
+
+		case ONcPS_Btn_QuickSave:
+			ONgGameState->local.pending_quick_save = UUcTrue;
+			WMrDialog_ModalEnd(inDialog, 0);
+		break;
+
+		case ONcPS_Btn_QuickLoad:
+			ONgGameState->local.pending_quick_load = UUcTrue;
+			WMrDialog_ModalEnd(inDialog, 0);
 		break;
 
 		case WMcDialogItem_Cancel:
