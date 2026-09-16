@@ -987,6 +987,8 @@ static UUcInline UUtBool ONrCharacter_IsActive(const ONtCharacter *inCharacter) 
 
 ONtCharacterClass *ONrGetCharacterClass(const char *inString);
 
+void ONrCorpse_Create_VisibleList(ONtCorpse *corpse);
+
 TRtBody *ONrCharacter_GetBody(ONtCharacter *inCharacter, TRtBodySelector inWhichBody);
 const TRtBody *ONrCharacter_GetBody_Const(const ONtCharacter *inCharacter, TRtBodySelector inWhichBody);
 UUtUns16 ONrCharacter_GetNumParts(const ONtCharacter *inCharacter);

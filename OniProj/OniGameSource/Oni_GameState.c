@@ -7034,6 +7034,521 @@ static void ONiGameState_LoadPlayer(ONtContinue *outContinue, const ONtQuickSave
 	return;
 }
 
+typedef struct ONtQuickSave_ApplyReport
+{
+	UUtUns32	geometryQuads;
+	UUtUns32	doors;
+	UUtUns32	charactersRestored;
+	UUtUns32	charactersSpawned;
+	UUtUns32	charactersSpawnRefused;
+	UUtUns32	charactersDeleted;
+	UUtUns32	charactersLive;
+	UUtUns32	doorsLocked;
+	UUtUns32	doorsForced;
+	UUtUns32	corpses;
+} ONtQuickSave_ApplyReport;
+
+static float ONiGameState_NormalizeFacing(float inFacing)
+{
+	float facing = (float) fmod(inFacing, M3c2Pi);
+
+	if (facing < 0.0f) {
+		facing += M3c2Pi;
+	}
+
+	return facing;
+}
+
+static void ONiGameState_CaptureGeometryQuads(ONtQuickSave *ioSave)
+{
+	AKtEnvironment *environment = ONrGameState_GetEnvironment();
+	AKtGQ_General *general;
+	UUtUns32 generalCount;
+	UUtUns32 itr;
+
+	ioSave->geometryQuadCount = 0;
+
+	if ((NULL == environment) || (NULL == environment->gqGeneralArray)) {
+		return;
+	}
+
+	general = environment->gqGeneralArray->gqGeneral;
+	generalCount = environment->gqGeneralArray->numGQs;
+
+	for (itr = 0; itr < generalCount; itr++) {
+		ONtQuickSave_GeometryQuad *savedQuad;
+
+		if (0 == (general[itr].flags & AKcGQ_Flag_BrokenGlass)) {
+			continue;
+		}
+
+		if (ioSave->geometryQuadCount >= ONcQuickSave_MaxGeometryQuads) {
+			ioSave->droppedCount++;
+
+			continue;
+		}
+
+		savedQuad = ioSave->geometryQuads + ioSave->geometryQuadCount;
+		savedQuad->index = itr;
+		savedQuad->flags = general[itr].flags;
+		ioSave->geometryQuadCount++;
+	}
+
+	return;
+}
+
+static void ONiGameState_ApplyGeometryQuads(const ONtQuickSave *inSave, ONtQuickSave_ApplyReport *ioReport)
+{
+	AKtEnvironment *environment = ONrGameState_GetEnvironment();
+	AKtGQ_General *general;
+	UUtUns32 generalCount;
+	UUtUns32 itr;
+
+	if ((0 == inSave->geometryQuadCount) || (NULL == environment) || (NULL == environment->gqGeneralArray)) {
+		return;
+	}
+
+	general = environment->gqGeneralArray->gqGeneral;
+	generalCount = environment->gqGeneralArray->numGQs;
+
+	for (itr = 0; itr < inSave->geometryQuadCount; itr++) {
+		const ONtQuickSave_GeometryQuad *savedQuad = inSave->geometryQuads + itr;
+
+		if (savedQuad->index >= generalCount) {
+			continue;
+		}
+
+		if (savedQuad->flags & AKcGQ_Flag_BrokenGlass) {
+			general[savedQuad->index].flags |= AKcGQ_Flag_BrokenGlass;
+		}
+		else {
+			general[savedQuad->index].flags &= ~AKcGQ_Flag_BrokenGlass;
+		}
+
+		ioReport->geometryQuads++;
+	}
+
+	AKrEnvironment_GunkChanged();
+
+	return;
+}
+
+static void ONiGameState_CaptureDoors(ONtQuickSave *ioSave)
+{
+	OBJtObject **objectList = NULL;
+	UUtUns32 objectCount = 0;
+	UUtUns32 itr;
+
+	ioSave->doorCount = 0;
+
+	if (UUcError_None != OBJrObjectType_GetObjectList(OBJcType_Door, &objectList, &objectCount)) {
+		return;
+	}
+
+	for (itr = 0; itr < objectCount; itr++) {
+		const OBJtOSD_Door *door = (const OBJtOSD_Door *) objectList[itr]->object_data;
+		ONtQuickSave_Door *savedDoor;
+
+		if (ioSave->doorCount >= ONcQuickSave_MaxDoors) {
+			ioSave->droppedCount++;
+
+			continue;
+		}
+
+		savedDoor = ioSave->doors + ioSave->doorCount;
+		savedDoor->id = door->id;
+		savedDoor->flags = door->flags;
+		savedDoor->state = door->state;
+		ioSave->doorCount++;
+	}
+
+	return;
+}
+
+static void ONiGameState_ApplyDoorFlags(OBJtOSD_Door *ioDoor, const ONtQuickSave_Door *inSavedDoor)
+{
+	ioDoor->flags &= ~(OBJcDoorFlag_Locked | OBJcDoorFlag_Jammed | OBJcDoorFlag_Busy);
+
+	if (inSavedDoor->flags & OBJcDoorFlag_Locked) {
+		ioDoor->flags |= OBJcDoorFlag_Locked;
+	}
+
+	if (inSavedDoor->flags & OBJcDoorFlag_Jammed) {
+		ioDoor->flags |= OBJcDoorFlag_Jammed;
+	}
+
+	return;
+}
+
+static void ONiGameState_ApplyDoors(const ONtQuickSave *inSave, ONtQuickSave_ApplyReport *ioReport)
+{
+	UUtUns32 itr;
+
+	for (itr = 0; itr < inSave->doorCount; itr++) {
+		const ONtQuickSave_Door *savedDoor = inSave->doors + itr;
+		UUtUns16 doorID = (UUtUns16) savedDoor->id;
+		OBJtObject *object = OBJrDoor_GetByID(doorID);
+		OBJtOSD_Door *door;
+		UUtBool wantOpen;
+		UUtBool isOpen;
+
+		if (NULL == object) {
+			continue;
+		}
+
+		door = (OBJtOSD_Door *) object->object_data;
+
+		ONiGameState_ApplyDoorFlags(door, savedDoor);
+
+		wantOpen = (OBJcDoorState_Open == savedDoor->state);
+		isOpen = (OBJcDoorState_Open == door->state);
+
+		if (wantOpen != isOpen) {
+			if (wantOpen) {
+				OBJrDoor_ForceOpen(doorID);
+			}
+			else {
+				OBJrDoor_ForceClose(doorID);
+			}
+
+			ioReport->doorsForced++;
+		}
+
+		if (0 != (door->flags & OBJcDoorFlag_Locked)) {
+			ioReport->doorsLocked++;
+		}
+
+		ioReport->doors++;
+	}
+
+	return;
+}
+
+static UUtBool ONiGameState_IsRecordableCharacter(const ONtCharacter *inCharacter)
+{
+	if (0 == (inCharacter->flags & ONcCharacterFlag_InUse)) {
+		return UUcFalse;
+	}
+
+	if (ONcChar_Player == inCharacter->charType) {
+		return UUcFalse;
+	}
+
+	return ('\0' != inCharacter->player_name[0]);
+}
+
+static UUtUns32 ONiGameState_CharacterOrdinal(UUtUns32 inCharacterIndex)
+{
+	const ONtCharacter *characters = ONrGameState_GetCharacterList();
+	const char *characterName = characters[inCharacterIndex].player_name;
+	UUtUns32 ordinal = 0;
+	UUtUns32 itr;
+
+	for (itr = 0; itr < inCharacterIndex; itr++) {
+		if (ONiGameState_IsRecordableCharacter(characters + itr)
+			&& UUmString_IsEqual(characters[itr].player_name, characterName)) {
+			ordinal++;
+		}
+	}
+
+	return ordinal;
+}
+
+static void ONiGameState_CaptureCharacters(ONtQuickSave *ioSave)
+{
+	const ONtCharacter *characters = ONrGameState_GetCharacterList();
+	UUtUns32 characterCount = ONrGameState_GetNumCharacters();
+	UUtUns32 itr;
+
+	ioSave->characterCount = 0;
+
+	for (itr = 0; itr < characterCount; itr++) {
+		const ONtCharacter *character = characters + itr;
+		ONtQuickSave_Character *savedCharacter;
+
+		if (!ONiGameState_IsRecordableCharacter(character)) {
+			continue;
+		}
+
+		if (ioSave->characterCount >= ONcQuickSave_MaxCharacters) {
+			ioSave->droppedCount++;
+
+			continue;
+		}
+
+		savedCharacter = ioSave->characters + ioSave->characterCount;
+
+		UUrMemory_Clear(savedCharacter, sizeof(*savedCharacter));
+		strncpy(savedCharacter->name, character->player_name, sizeof(savedCharacter->name) - 1);
+		savedCharacter->ordinal = ONiGameState_CharacterOrdinal(itr);
+		savedCharacter->position.x = character->location.x;
+		savedCharacter->position.y = character->location.y;
+		savedCharacter->position.z = character->location.z;
+		savedCharacter->facing = character->facing;
+		savedCharacter->hitPoints = character->hitPoints;
+		savedCharacter->alive = (0 == (character->flags & ONcCharacterFlag_Dead));
+		ioSave->characterCount++;
+	}
+
+	return;
+}
+
+static ONtCharacter *ONiGameState_FindCharacter(const char *inName, UUtUns32 inOrdinal)
+{
+	ONtCharacter *characters = ONrGameState_GetCharacterList();
+	UUtUns32 characterCount = ONrGameState_GetNumCharacters();
+	UUtUns32 ordinal = 0;
+	UUtUns32 itr;
+
+	for (itr = 0; itr < characterCount; itr++) {
+		ONtCharacter *character = characters + itr;
+
+		if (!ONiGameState_IsRecordableCharacter(character) || !UUmString_IsEqual(character->player_name, inName)) {
+			continue;
+		}
+
+		if (ordinal == inOrdinal) {
+			return character;
+		}
+
+		ordinal++;
+	}
+
+	return NULL;
+}
+
+static UUtUns32 ONiGameState_CountRecordableCharacters(void)
+{
+	const ONtCharacter *characters = ONrGameState_GetCharacterList();
+	UUtUns32 characterCount = ONrGameState_GetNumCharacters();
+	UUtUns32 count = 0;
+	UUtUns32 itr;
+
+	for (itr = 0; itr < characterCount; itr++) {
+		if (ONiGameState_IsRecordableCharacter(characters + itr)) {
+			count++;
+		}
+	}
+
+	return count;
+}
+
+static void ONiGameState_RestoreCharacter(ONtCharacter *ioCharacter, const ONtQuickSave_Character *inSavedCharacter)
+{
+	M3tPoint3D position;
+
+	position.x = inSavedCharacter->position.x;
+	position.y = inSavedCharacter->position.y;
+	position.z = inSavedCharacter->position.z;
+
+	ONrCharacter_Teleport(ioCharacter, &position, UUcFalse);
+
+	ioCharacter->hitPoints = inSavedCharacter->hitPoints;
+
+	ONrCharacter_SetFacing(ioCharacter, ONiGameState_NormalizeFacing(inSavedCharacter->facing));
+	ONrCharacter_GetFacingVector(ioCharacter, &ioCharacter->facingVector);
+
+	return;
+}
+
+static UUtBool ONiGameState_ClearSpawnedFlag_Enum(OBJtObject *inObject, uintptr_t inUserData)
+{
+	const char *characterName = (const char *) inUserData;
+	OBJtOSD_Character *characterOSD = (OBJtOSD_Character *) inObject->object_data;
+
+	if (UUmString_IsEqual(characterOSD->character_name, characterName)) {
+		characterOSD->flags &= ~OBJcCharFlags_Spawned;
+	}
+
+	return UUcTrue;
+}
+
+static void ONiGameState_DeleteRestoredCharacter(ONtCharacter *ioCharacter)
+{
+	char characterName[ONcMaxPlayerNameLength];
+
+	strncpy(characterName, ioCharacter->player_name, sizeof(characterName) - 1);
+	characterName[sizeof(characterName) - 1] = '\0';
+
+	ONrGameState_DeleteCharacter(ioCharacter);
+
+	OBJrObjectType_EnumerateObjects(OBJcType_Character, ONiGameState_ClearSpawnedFlag_Enum, (uintptr_t) characterName);
+
+	return;
+}
+
+static UUtBool ONiGameState_SpawnRestoredCharacter(const ONtQuickSave_Character *inSavedCharacter)
+{
+	char characterName[ONcMaxPlayerNameLength];
+	UUtUns32 before = ONiGameState_CountRecordableCharacters();
+
+	strncpy(characterName, inSavedCharacter->name, sizeof(characterName) - 1);
+	characterName[sizeof(characterName) - 1] = '\0';
+
+	AI2rSpawnCharacter(characterName, UUcTrue);
+
+	return (ONiGameState_CountRecordableCharacters() > before);
+}
+
+static void ONiGameState_ApplyCharacters(const ONtQuickSave *inSave, ONtQuickSave_ApplyReport *ioReport)
+{
+	ONtCharacter *resolvedCharacters[ONcQuickSave_MaxCharacters];
+	UUtUns32 itr;
+
+	for (itr = 0; itr < inSave->characterCount; itr++) {
+		const ONtQuickSave_Character *savedCharacter = inSave->characters + itr;
+
+		resolvedCharacters[itr] = ONiGameState_FindCharacter(savedCharacter->name, savedCharacter->ordinal);
+	}
+
+	for (itr = 0; itr < inSave->characterCount; itr++) {
+		const ONtQuickSave_Character *savedCharacter = inSave->characters + itr;
+
+		if ((NULL != resolvedCharacters[itr]) && savedCharacter->alive) {
+			ONiGameState_RestoreCharacter(resolvedCharacters[itr], savedCharacter);
+
+			ioReport->charactersRestored++;
+		}
+	}
+
+	for (itr = 0; itr < inSave->characterCount; itr++) {
+		const ONtQuickSave_Character *savedCharacter = inSave->characters + itr;
+
+		if ((NULL == resolvedCharacters[itr]) && savedCharacter->alive) {
+			if (ONiGameState_SpawnRestoredCharacter(savedCharacter)) {
+				ioReport->charactersSpawned++;
+			}
+			else {
+				ioReport->charactersSpawnRefused++;
+			}
+		}
+	}
+
+	for (itr = 0; itr < inSave->characterCount; itr++) {
+		const ONtQuickSave_Character *savedCharacter = inSave->characters + itr;
+
+		if ((NULL != resolvedCharacters[itr]) && !savedCharacter->alive) {
+			ONiGameState_DeleteRestoredCharacter(resolvedCharacters[itr]);
+
+			ioReport->charactersDeleted++;
+		}
+	}
+
+	ioReport->charactersLive = ONiGameState_CountRecordableCharacters();
+
+	return;
+}
+
+static void ONiGameState_CaptureCorpses(ONtQuickSave *ioSave)
+{
+	const ONtCorpseArray *corpseArray = ONgLevel->corpseArray;
+	UUtUns32 itr;
+
+	ioSave->corpseCount = 0;
+
+	if (NULL == corpseArray) {
+		return;
+	}
+
+	UUmAssert(ONcQuickSave_CorpsePartCount == ONcNumCharacterParts);
+
+	for (itr = corpseArray->static_corpses; itr < corpseArray->max_corpses; itr++) {
+		const ONtCorpse *corpse = corpseArray->corpses + itr;
+		const char *characterClassName;
+		ONtQuickSave_Corpse *savedCorpse;
+
+		if (NULL == corpse->corpse_data.characterClass) {
+			continue;
+		}
+
+		if (ioSave->corpseCount >= ONcQuickSave_MaxCorpses) {
+			ioSave->droppedCount++;
+
+			continue;
+		}
+
+		savedCorpse = ioSave->corpses + ioSave->corpseCount;
+
+		UUrMemory_Clear(savedCorpse, sizeof(*savedCorpse));
+		strncpy(savedCorpse->name, corpse->corpse_name, sizeof(savedCorpse->name) - 1);
+
+		characterClassName = TMrInstance_GetInstanceName(corpse->corpse_data.characterClass);
+		strncpy(savedCorpse->characterClassName, characterClassName, sizeof(savedCorpse->characterClassName) - 1);
+
+		UUrMemory_MoveFast(corpse->corpse_data.matricies, savedCorpse->matricies,
+			UUmMin(sizeof(savedCorpse->matricies), sizeof(corpse->corpse_data.matricies)));
+
+		savedCorpse->boundingBoxMin.x = corpse->corpse_data.corpse_bbox.minPoint.x;
+		savedCorpse->boundingBoxMin.y = corpse->corpse_data.corpse_bbox.minPoint.y;
+		savedCorpse->boundingBoxMin.z = corpse->corpse_data.corpse_bbox.minPoint.z;
+		savedCorpse->boundingBoxMax.x = corpse->corpse_data.corpse_bbox.maxPoint.x;
+		savedCorpse->boundingBoxMax.y = corpse->corpse_data.corpse_bbox.maxPoint.y;
+		savedCorpse->boundingBoxMax.z = corpse->corpse_data.corpse_bbox.maxPoint.z;
+
+		ioSave->corpseCount++;
+	}
+
+	return;
+}
+
+static void ONiGameState_ApplyCorpses(const ONtQuickSave *inSave, ONtQuickSave_ApplyReport *ioReport)
+{
+	ONtCorpseArray *corpseArray = ONgLevel->corpseArray;
+	UUtUns32 corpseIndex;
+	UUtUns32 itr;
+
+	if ((0 == inSave->corpseCount) || (NULL == corpseArray)) {
+		return;
+	}
+
+	corpseIndex = corpseArray->static_corpses;
+
+	for (itr = 0; itr < inSave->corpseCount; itr++) {
+		const ONtQuickSave_Corpse *savedCorpse = inSave->corpses + itr;
+		ONtCharacterClass *characterClass;
+		ONtCorpse *corpse;
+
+		if (corpseIndex >= corpseArray->max_corpses) {
+			break;
+		}
+
+		characterClass = ONrGetCharacterClass(savedCorpse->characterClassName);
+
+		if (NULL == characterClass) {
+			continue;
+		}
+
+		corpse = corpseArray->corpses + corpseIndex;
+
+		UUrMemory_Clear(corpse, sizeof(*corpse));
+		strncpy(corpse->corpse_name, savedCorpse->name, sizeof(corpse->corpse_name) - 1);
+
+		UUrMemory_MoveFast(savedCorpse->matricies, corpse->corpse_data.matricies,
+			UUmMin(sizeof(corpse->corpse_data.matricies), sizeof(savedCorpse->matricies)));
+
+		corpse->corpse_data.corpse_bbox.minPoint.x = savedCorpse->boundingBoxMin.x;
+		corpse->corpse_data.corpse_bbox.minPoint.y = savedCorpse->boundingBoxMin.y;
+		corpse->corpse_data.corpse_bbox.minPoint.z = savedCorpse->boundingBoxMin.z;
+		corpse->corpse_data.corpse_bbox.maxPoint.x = savedCorpse->boundingBoxMax.x;
+		corpse->corpse_data.corpse_bbox.maxPoint.y = savedCorpse->boundingBoxMax.y;
+		corpse->corpse_data.corpse_bbox.maxPoint.z = savedCorpse->boundingBoxMax.z;
+		corpse->corpse_data.characterClass = characterClass;
+
+		ONrCorpse_Create_VisibleList(corpse);
+
+		corpseIndex++;
+		ioReport->corpses++;
+	}
+
+	if (corpseIndex >= corpseArray->max_corpses) {
+		corpseIndex = corpseArray->static_corpses;
+	}
+
+	corpseArray->next = corpseIndex;
+
+	return;
+}
+
 static void ONiGameState_QuickSaveNotify(const char *inMessage)
 {
 	COrMessage_Print(inMessage, NULL, ONcAutosaveFadeTime);
@@ -7059,6 +7574,10 @@ void ONrGameState_QuickSave(void)
 	ONgQuickSave.levelNumber = ONgGameState->levelNumber;
 	ONgQuickSave.savePoint = ONgContinueSavePoint;
 	ONiGameState_StorePlayer(&ONgQuickSave.player, &player);
+	ONiGameState_CaptureGeometryQuads(&ONgQuickSave);
+	ONiGameState_CaptureDoors(&ONgQuickSave);
+	ONiGameState_CaptureCharacters(&ONgQuickSave);
+	ONiGameState_CaptureCorpses(&ONgQuickSave);
 
 	if (!ONrQuickSave_Write(&ONgQuickSave)) {
 		ONiGameState_QuickSaveNotify("Could not write quick save");
@@ -7080,6 +7599,7 @@ void ONrGameState_QuickSave(void)
 
 void ONrGameState_QuickLoad(void)
 {
+	ONtQuickSave_ApplyReport report;
 	ONtContinue player;
 
 	if (!ONrQuickSave_Read(&ONgQuickSave)) {
@@ -7088,6 +7608,8 @@ void ONrGameState_QuickLoad(void)
 
 		return;
 	}
+
+	UUrMemory_Clear(&report, sizeof(report));
 
 	ONiGameState_LoadPlayer(&player, &ONgQuickSave.player);
 
@@ -7099,13 +7621,22 @@ void ONrGameState_QuickLoad(void)
 
 	ONrLevel_Load((UUtUns16) ONgQuickSave.levelNumber, UUcTrue);
 
+	ONiGameState_ApplyGeometryQuads(&ONgQuickSave, &report);
+	ONiGameState_ApplyDoors(&ONgQuickSave, &report);
+	ONiGameState_ApplyCharacters(&ONgQuickSave, &report);
+	ONiGameState_ApplyCorpses(&ONgQuickSave, &report);
 	ONiGameState_ApplyContinue(&player);
 
 	ONiGameState_QuickSaveNotify("Game loaded");
-	UUrStartupMessage("[quicksave] loaded level %d save point %d (%u characters, %u doors, %u quads, %u corpses)",
+	UUrStartupMessage("[quicksave] loaded level %d save point %d (%u quads; doors %u applied, %u forced, %u locked; characters %u restored, %u spawned, %u refused, %u deleted, %u live of %u saved; %u corpses of %u saved, %u dropped)",
 		(int) ONgQuickSave.levelNumber, (int) ONgQuickSave.savePoint,
-		(unsigned) ONgQuickSave.characterCount, (unsigned) ONgQuickSave.doorCount,
-		(unsigned) ONgQuickSave.geometryQuadCount, (unsigned) ONgQuickSave.corpseCount);
+		(unsigned) report.geometryQuads,
+		(unsigned) report.doors, (unsigned) report.doorsForced, (unsigned) report.doorsLocked,
+		(unsigned) report.charactersRestored, (unsigned) report.charactersSpawned,
+		(unsigned) report.charactersSpawnRefused, (unsigned) report.charactersDeleted,
+		(unsigned) report.charactersLive, (unsigned) ONgQuickSave.characterCount,
+		(unsigned) report.corpses, (unsigned) ONgQuickSave.corpseCount,
+		(unsigned) ONgQuickSave.droppedCount);
 
 	return;
 }

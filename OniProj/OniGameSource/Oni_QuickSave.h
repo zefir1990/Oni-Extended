@@ -32,7 +32,7 @@ extern "C" {
 
 #define ONcQuickSave_MaxCharacters				(128)
 #define ONcQuickSave_MaxDoors					(256)
-#define ONcQuickSave_MaxGeometryQuads			(1024)
+#define ONcQuickSave_MaxGeometryQuads			(4096)
 #define ONcQuickSave_MaxCorpses					(128)
 
 typedef struct ONtQuickSave_Point
