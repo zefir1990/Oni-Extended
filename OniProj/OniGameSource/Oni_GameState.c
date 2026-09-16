@@ -56,6 +56,7 @@
 #include "Oni_Win_AI.h"
 #include "Oni_Object.h"
 #include "Oni_Path.h"
+#include "Oni_QuickSave.h"
 #include "Oni_Character_Animation.h"
 #include "Oni_KeyBindings.h"
 #include "Oni_Object.h"
@@ -3428,6 +3429,14 @@ void ONrGameState_HandleUtilityInput(const ONtInputState*	inInput)
 		iScreenShot(ONgScreenShotReduceAmount);
 	}
 
+	if (inInput->buttonWentDown & LIc_BitMask_QuickSave) {
+		ONrGameState_QuickSave();
+	}
+
+	if (inInput->buttonWentDown & LIc_BitMask_QuickLoad) {
+		ONgGameState->local.pending_quick_load = UUcTrue;
+	}
+
 #if SHIPPING_VERSION
 	if (ONgChangeCharacters) {
 		if (ONrDebugKey_WentDown(ONcDebugKey_ChangeCharacters)) {
@@ -5547,6 +5556,36 @@ iDebugEnvAnim(
 }
 
 
+static UUtError
+ONrGameState_QuickSave_Command(
+	SLtErrorContext*		inErrorContext,
+	UUtUns32				inParameterListLength,
+	SLtParameter_Actual*	inParameterList,
+	UUtUns32				*outTicksTillCompletion,
+	UUtBool					*outStall,
+	SLtParameter_Actual		*ioReturnValue)
+{
+	ONrGameState_QuickSave();
+
+	return UUcError_None;
+}
+
+
+static UUtError
+ONrGameState_QuickLoad_Command(
+	SLtErrorContext*		inErrorContext,
+	UUtUns32				inParameterListLength,
+	SLtParameter_Actual*	inParameterList,
+	UUtUns32				*outTicksTillCompletion,
+	UUtBool					*outStall,
+	SLtParameter_Actual		*ioReturnValue)
+{
+	ONgGameState->local.pending_quick_load = UUcTrue;
+
+	return UUcError_None;
+}
+
+
 UUtError
 ONrGameState_Initialize(
 	void)
@@ -5615,6 +5654,8 @@ ONrGameState_Initialize(
 #endif
 		{ "gs_farclipplane_set", "sets the far clipping plane", "plane:float", ONrGameState_FarClipPlane_Set },
 //		{ "debug_export_gunk", "exports gunk and writes debugging info", "", iDebugExportGunk },
+		{ "quick_save", "writes a mid-level quick save", "", ONrGameState_QuickSave_Command },
+		{ "quick_load", "restores the mid-level quick save", "", ONrGameState_QuickLoad_Command },
 		{ NULL, NULL, NULL, NULL }
 	};
 
@@ -6742,9 +6783,64 @@ static char *get_time_string(void)
 #endif
 
 
-void ONrGameState_MakeContinue(UUtUns32 inSavePoint, UUtBool inAutoSave)
+static void ONiGameState_CaptureContinue(ONtContinue *outContinue)
 {
 	ONtCharacter *character = ONgGameState->local.playerCharacter;
+	UUtUns32 itr;
+
+	UUrMemory_Clear(outContinue, sizeof(*outContinue));
+
+	outContinue->maxHitPoints = character->maxHitPoints;
+	outContinue->hitPoints = character->hitPoints + character->inventory.hypoRemaining;
+	outContinue->actual_position = character->actual_position;
+	outContinue->facing = character->facing;
+
+	outContinue->ammo = character->inventory.ammo;
+	outContinue->cell = character->inventory.cell;
+	outContinue->shieldRemaining = character->inventory.shieldRemaining;
+	outContinue->invisibilityRemaining = character->inventory.invisibilityRemaining;
+	outContinue->hypo = character->inventory.hypo;
+	outContinue->keys = character->inventory.keys;
+	outContinue->has_lsi = character->inventory.has_lsi;
+	outContinue->continue_flags = ONcContinueFlag_Valid;
+
+	for (itr = 0; itr < WPcMaxSlots; itr++) {
+		WPtWeapon *weapon = character->inventory.weapons[itr];
+
+		if (NULL != weapon) {
+			WPtWeaponClass *weapon_class = WPrGetClass(weapon);
+
+			if (NULL != weapon_class) {
+				const char *weapon_instance_name = TMrInstance_GetInstanceName(weapon_class);
+
+				strcpy(outContinue->weapon_save[itr].weapon, weapon_instance_name);
+				outContinue->weapon_save[itr].weapon_ammo = WPrGetAmmo(weapon);
+			}
+		}
+	}
+
+	return;
+}
+
+static void ONiGameState_NameContinue(char *outName)
+{
+	if (1 == ONgGameState->levelNumber) {
+		if (1 == ONgContinueSavePoint) {
+			sprintf(outName, "Syndicate Warehouse");
+		}
+		else {
+			sprintf(outName, "    Save Point %d", ONgContinueSavePoint - 1);
+		}
+	}
+	else {
+		sprintf(outName, "     Save Point %d", ONgContinueSavePoint);
+	}
+
+	return;
+}
+
+void ONrGameState_MakeContinue(UUtUns32 inSavePoint, UUtBool inAutoSave)
+{
 	const char *message;
 
 	if (inAutoSave) {
@@ -6759,59 +6855,13 @@ void ONrGameState_MakeContinue(UUtUns32 inSavePoint, UUtBool inAutoSave)
 		COrConsole_Printf("invalid save point");
 	}
 
-	if (ONgContinueSavePoint == ((UUtInt32) inSavePoint)) {
-		// don't double save at a save point
-	}
-
 	ONrGameState_ClearContinue();
 
 	ONgContinueSavePoint = inSavePoint;
 
-	if (1 == ONgGameState->levelNumber) {
-		if (1 == inSavePoint) {
-			sprintf(ONgContinue.name, "Syndicate Warehouse");
-		}
-		else {
-			sprintf(ONgContinue.name, "    Save Point %d", ONgContinueSavePoint - 1);
-		}
-	}
-	else {
-		sprintf(ONgContinue.name, "     Save Point %d", ONgContinueSavePoint);
-	}
+	ONiGameState_CaptureContinue(&ONgContinue);
 
-	ONgContinue.maxHitPoints = character->maxHitPoints;
-	ONgContinue.hitPoints = character->hitPoints + character->inventory.hypoRemaining;
-	ONgContinue.actual_position = character->actual_position;
-	ONgContinue.facing = character->facing;
-
-	ONgContinue.ammo = character->inventory.ammo;
-	ONgContinue.cell = character->inventory.cell;
-	ONgContinue.shieldRemaining = character->inventory.shieldRemaining;
-	ONgContinue.invisibilityRemaining = character->inventory.invisibilityRemaining;
-	ONgContinue.hypo = character->inventory.hypo;
-	ONgContinue.keys = character->inventory.keys;
-	ONgContinue.has_lsi = character->inventory.has_lsi;
-	ONgContinue.continue_flags = ONcContinueFlag_Valid;
-
-	{
-		UUtUns32 itr;
-
-		for(itr = 0; itr < WPcMaxSlots; itr++) {
-			WPtWeapon *weapon = character->inventory.weapons[itr];
-
-			if (NULL != weapon) {
-				WPtWeaponClass *weapon_class = WPrGetClass(weapon);
-				if (NULL != weapon_class) {
-					const char *weapon_instance_name;
-
-					weapon_instance_name = TMrInstance_GetInstanceName(weapon_class);
-
-					strcpy(ONgContinue.weapon_save[itr].weapon, weapon_instance_name);
-					ONgContinue.weapon_save[itr].weapon_ammo = WPrGetAmmo(weapon);
-				}
-			}
-		}
-	}
+	ONiGameState_NameContinue(ONgContinue.name);
 
 	ONrPersist_SetContinue(ONgGameState->levelNumber, inSavePoint, &ONgContinue);
 
@@ -6827,10 +6877,66 @@ void ONrGameState_MakeContinue(UUtUns32 inSavePoint, UUtBool inAutoSave)
 	return;
 }
 
+static void ONiGameState_ApplyContinue(const ONtContinue *inContinue)
+{
+	ONtContinue continueData = *inContinue;
+	ONtCharacter *character = ONgGameState->local.playerCharacter;
+	UUtUns32 itr;
+
+	if (character->maxHitPoints == continueData.maxHitPoints) {
+		character->hitPoints = continueData.hitPoints;
+	} else {
+		// CB: we must keep the character's ratio of hit points to max hit points the same, as they
+		// might be loading a game as a different character class, or on a different difficulty level
+		character->hitPoints = (continueData.hitPoints * character->maxHitPoints) / continueData.maxHitPoints;
+	}
+
+	ONrCharacter_Teleport(character, &continueData.actual_position, UUcFalse);
+	character->facing = continueData.facing;
+	character->facingModifier = 0;
+	character->desiredFacing = continueData.facing;
+
+	// inventory
+	character->inventory.ammo = (UUtUns16) continueData.ammo;
+	character->inventory.cell = (UUtUns16) continueData.cell;
+	character->inventory.shieldRemaining = (UUtUns16) continueData.shieldRemaining;
+	character->inventory.invisibilityRemaining = (UUtUns16) continueData.invisibilityRemaining;
+	character->inventory.hypo = (UUtUns16) continueData.hypo;
+	character->inventory.keys = continueData.keys;
+	character->inventory.has_lsi = (UUtBool) continueData.has_lsi;
+
+	character->inventory.weapons[0] = NULL;
+	ONrCharacter_NotifyReleaseWeapon(character);
+
+	for (itr = 0; itr < WPcMaxSlots; itr++) {
+		if (character->inventory.weapons[itr] != NULL) {
+			WPrDelete(character->inventory.weapons[itr]);
+		}
+	}
+
+	UUrMemory_Clear(character->inventory.weapons, sizeof(character->inventory.weapons));
+
+	if (continueData.weapon_save[2].weapon[0] != '\0') {
+		ONrCharacter_UseWeapon_NameAmmo(character, continueData.weapon_save[2].weapon, continueData.weapon_save[2].weapon_ammo);
+		ONrCharacter_PickupWeapon(character, NULL, UUcFalse);
+	}
+
+	if (continueData.weapon_save[1].weapon[0] != '\0') {
+		ONrCharacter_UseWeapon_NameAmmo(character, continueData.weapon_save[1].weapon, continueData.weapon_save[1].weapon_ammo);
+		ONrCharacter_PickupWeapon(character, NULL, UUcTrue);
+	}
+
+	if (continueData.weapon_save[0].weapon[0] != '\0') {
+		ONrCharacter_UseWeapon_NameAmmo(character, continueData.weapon_save[0].weapon, continueData.weapon_save[0].weapon_ammo);
+	}
+
+	ONrCharacter_ResetWeaponVarient(character);
+
+	return;
+}
+
 void ONrGameState_UseContinue(void)
 {
-	ONtCharacter *character = ONgGameState->local.playerCharacter;
-
 	if (0 == ONgContinueSavePoint) {
 		COrConsole_Printf("failed to continue, invalid save point");
 		goto exit;
@@ -6841,59 +6947,7 @@ void ONrGameState_UseContinue(void)
 		goto exit;
 	}
 
-	if (character->maxHitPoints == ONgContinue.maxHitPoints) {
-		character->hitPoints = ONgContinue.hitPoints;
-	} else {
-		// CB: we must keep the character's ratio of hit points to max hit points the same, as they
-		// might be loading a game as a different character class, or on a different difficulty level
-		character->hitPoints = (ONgContinue.hitPoints * character->maxHitPoints) / ONgContinue.maxHitPoints;
-	}
-
-	ONrCharacter_Teleport(character, &ONgContinue.actual_position, UUcFalse);
-	character->facing = ONgContinue.facing;
-	character->facingModifier = 0;
-	character->desiredFacing = ONgContinue.facing;
-
-	// inventory
-	character->inventory.ammo = (UUtUns16) ONgContinue.ammo;
-	character->inventory.cell = (UUtUns16) ONgContinue.cell;
-	character->inventory.shieldRemaining = (UUtUns16) ONgContinue.shieldRemaining;
-	character->inventory.invisibilityRemaining = (UUtUns16) ONgContinue.invisibilityRemaining;
-	character->inventory.hypo = (UUtUns16) ONgContinue.hypo;
-	character->inventory.keys = ONgContinue.keys;
-	character->inventory.has_lsi = (UUtBool) ONgContinue.has_lsi;
-
-	{
-		UUtUns32 itr;
-
-		character->inventory.weapons[0] = NULL;
-		ONrCharacter_NotifyReleaseWeapon(character);
-
-		for(itr =0; itr < WPcMaxSlots; itr++)
-		{
-			if (character->inventory.weapons[itr]!= NULL) {
-				WPrDelete(character->inventory.weapons[itr]);
-			}
-		}
-
-		UUrMemory_Clear(character->inventory.weapons, sizeof(character->inventory.weapons));
-
-		if (ONgContinue.weapon_save[2].weapon[0] != '\0') {
-			ONrCharacter_UseWeapon_NameAmmo(character, ONgContinue.weapon_save[2].weapon, ONgContinue.weapon_save[2].weapon_ammo);
-			ONrCharacter_PickupWeapon(character, NULL, UUcFalse);
-		}
-
-		if (ONgContinue.weapon_save[1].weapon[0] != '\0') {
-			ONrCharacter_UseWeapon_NameAmmo(character, ONgContinue.weapon_save[1].weapon, ONgContinue.weapon_save[1].weapon_ammo);
-			ONrCharacter_PickupWeapon(character, NULL, UUcTrue);
-		}
-
-		if (ONgContinue.weapon_save[0].weapon[0] != '\0') {
-			ONrCharacter_UseWeapon_NameAmmo(character, ONgContinue.weapon_save[0].weapon, ONgContinue.weapon_save[0].weapon_ammo);
-		}
-
-		ONrCharacter_ResetWeaponVarient(character);
-	}
+	ONiGameState_ApplyContinue(&ONgContinue);
 
 exit:
 	ONrInGameUI_NotifyRestoreGame(ONgGameState->gameTime);
@@ -6914,6 +6968,144 @@ void ONrGameState_Continue_SetFromSave(UUtInt32 inSavePoint, const ONtContinue *
 {
 	ONgContinue = *inContinue;
 	ONgContinueSavePoint = inSavePoint;
+
+	return;
+}
+
+static ONtQuickSave ONgQuickSave;
+
+static void ONiGameState_StorePlayer(ONtQuickSave_Player *outPlayer, const ONtContinue *inContinue)
+{
+	UUtUns32 itr;
+
+	UUrMemory_Clear(outPlayer, sizeof(*outPlayer));
+
+	strncpy(outPlayer->name, inContinue->name, sizeof(outPlayer->name) - 1);
+	outPlayer->continueFlags = inContinue->continue_flags;
+	outPlayer->hitPoints = inContinue->hitPoints;
+	outPlayer->maxHitPoints = inContinue->maxHitPoints;
+	outPlayer->position.x = inContinue->actual_position.x;
+	outPlayer->position.y = inContinue->actual_position.y;
+	outPlayer->position.z = inContinue->actual_position.z;
+	outPlayer->facing = inContinue->facing;
+	outPlayer->ammo = inContinue->ammo;
+	outPlayer->cell = inContinue->cell;
+	outPlayer->shieldRemaining = inContinue->shieldRemaining;
+	outPlayer->invisibilityRemaining = inContinue->invisibilityRemaining;
+	outPlayer->hypo = inContinue->hypo;
+	outPlayer->keys = inContinue->keys;
+	outPlayer->hasLsi = inContinue->has_lsi;
+
+	for (itr = 0; itr < ONcQuickSave_WeaponSlotCount; itr++) {
+		strncpy(outPlayer->weaponSave[itr].name, inContinue->weapon_save[itr].weapon, sizeof(outPlayer->weaponSave[itr].name) - 1);
+		outPlayer->weaponSave[itr].ammo = inContinue->weapon_save[itr].weapon_ammo;
+	}
+
+	return;
+}
+
+static void ONiGameState_LoadPlayer(ONtContinue *outContinue, const ONtQuickSave_Player *inPlayer)
+{
+	UUtUns32 itr;
+
+	UUrMemory_Clear(outContinue, sizeof(*outContinue));
+
+	strncpy(outContinue->name, inPlayer->name, sizeof(outContinue->name) - 1);
+	outContinue->continue_flags = (ONtContinueFlags) inPlayer->continueFlags;
+	outContinue->hitPoints = inPlayer->hitPoints;
+	outContinue->maxHitPoints = inPlayer->maxHitPoints;
+	outContinue->actual_position.x = inPlayer->position.x;
+	outContinue->actual_position.y = inPlayer->position.y;
+	outContinue->actual_position.z = inPlayer->position.z;
+	outContinue->facing = inPlayer->facing;
+	outContinue->ammo = inPlayer->ammo;
+	outContinue->cell = inPlayer->cell;
+	outContinue->shieldRemaining = inPlayer->shieldRemaining;
+	outContinue->invisibilityRemaining = inPlayer->invisibilityRemaining;
+	outContinue->hypo = inPlayer->hypo;
+	outContinue->keys = inPlayer->keys;
+	outContinue->has_lsi = inPlayer->hasLsi;
+
+	for (itr = 0; itr < ONcQuickSave_WeaponSlotCount; itr++) {
+		strncpy(outContinue->weapon_save[itr].weapon, inPlayer->weaponSave[itr].name, sizeof(outContinue->weapon_save[itr].weapon) - 1);
+		outContinue->weapon_save[itr].weapon_ammo = inPlayer->weaponSave[itr].ammo;
+	}
+
+	return;
+}
+
+static void ONiGameState_QuickSaveNotify(const char *inMessage)
+{
+	COrMessage_Print(inMessage, NULL, ONcAutosaveFadeTime);
+
+	return;
+}
+
+void ONrGameState_QuickSave(void)
+{
+	ONtContinue player;
+
+	if ((NULL == ONgGameState->local.playerCharacter) || (0 == ONrLevel_GetCurrentLevel())) {
+		ONiGameState_QuickSaveNotify("Cannot save here");
+
+		return;
+	}
+
+	ONiGameState_CaptureContinue(&player);
+
+	ONiGameState_NameContinue(player.name);
+
+	ONrQuickSave_Clear(&ONgQuickSave);
+	ONgQuickSave.levelNumber = ONgGameState->levelNumber;
+	ONgQuickSave.savePoint = ONgContinueSavePoint;
+	ONiGameState_StorePlayer(&ONgQuickSave.player, &player);
+
+	if (!ONrQuickSave_Write(&ONgQuickSave)) {
+		ONiGameState_QuickSaveNotify("Could not write quick save");
+		UUrStartupMessage("[quicksave] failed to write level %d save point %d",
+			(int) ONgQuickSave.levelNumber, (int) ONgQuickSave.savePoint);
+
+		return;
+	}
+
+	ONrGameState_EventSound_Play(ONcEventSound_Autosave, NULL);
+	ONiGameState_QuickSaveNotify("Game saved");
+	UUrStartupMessage("[quicksave] saved level %d save point %d (%u characters, %u doors, %u quads, %u corpses)",
+		(int) ONgQuickSave.levelNumber, (int) ONgQuickSave.savePoint,
+		(unsigned) ONgQuickSave.characterCount, (unsigned) ONgQuickSave.doorCount,
+		(unsigned) ONgQuickSave.geometryQuadCount, (unsigned) ONgQuickSave.corpseCount);
+
+	return;
+}
+
+void ONrGameState_QuickLoad(void)
+{
+	ONtContinue player;
+
+	if (!ONrQuickSave_Read(&ONgQuickSave)) {
+		ONiGameState_QuickSaveNotify("No quick save");
+		UUrStartupMessage("[quicksave] no readable quick save");
+
+		return;
+	}
+
+	ONiGameState_LoadPlayer(&player, &ONgQuickSave.player);
+
+	ONrGameState_Continue_SetFromSave(ONgQuickSave.savePoint, &player);
+
+	if (0 != ONrLevel_GetCurrentLevel()) {
+		ONrLevel_Unload();
+	}
+
+	ONrLevel_Load((UUtUns16) ONgQuickSave.levelNumber, UUcTrue);
+
+	ONiGameState_ApplyContinue(&player);
+
+	ONiGameState_QuickSaveNotify("Game loaded");
+	UUrStartupMessage("[quicksave] loaded level %d save point %d (%u characters, %u doors, %u quads, %u corpses)",
+		(int) ONgQuickSave.levelNumber, (int) ONgQuickSave.savePoint,
+		(unsigned) ONgQuickSave.characterCount, (unsigned) ONgQuickSave.doorCount,
+		(unsigned) ONgQuickSave.geometryQuadCount, (unsigned) ONgQuickSave.corpseCount);
 
 	return;
 }

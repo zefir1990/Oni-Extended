@@ -84,11 +84,11 @@ enum
 	LIc_Bit_StopRecord,
 	LIc_Bit_PlayRecord,
 	LIc_Bit_F12,
-	LIc_Bit_Unused1,
+	LIc_Bit_QuickSave,
 	LIc_Bit_LookMode,
 
 	LIc_Bit_ScreenShot,
-	LIc_Bit_Unused2,
+	LIc_Bit_QuickLoad,
 	LIc_Bit_Unused3,
 	LIc_Bit_Unused4,
 	LIc_Bit_Unused5,
@@ -134,6 +134,8 @@ enum
 #define	LIc_BitMask_F12				LImMakeBitMask(LIc_Bit_F12)
 #define	LIc_BitMask_LookMode		LImMakeBitMask(LIc_Bit_LookMode)
 #define	LIc_BitMask_ScreenShot		LImMakeBitMask(LIc_Bit_ScreenShot)
+#define	LIc_BitMask_QuickSave		LImMakeBitMask(LIc_Bit_QuickSave)
+#define	LIc_BitMask_QuickLoad		LImMakeBitMask(LIc_Bit_QuickLoad)
 
 #define	LIc_BitMask_Forward			LImMakeBitMask(LIc_Bit_Forward)
 #define	LIc_BitMask_Backward		LImMakeBitMask(LIc_Bit_Backward)

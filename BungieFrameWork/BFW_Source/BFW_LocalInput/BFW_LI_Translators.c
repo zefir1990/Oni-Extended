@@ -72,6 +72,8 @@ LItActionDescription		LIgActionDescriptions[] =
 	{ LIcIT_Button,				LIc_Bit_LookMode,			"lookmode"		},
 	{ LIcIT_Button,				LIc_Bit_Reload,				"reload"		},
 	{ LIcIT_Button,				LIc_Bit_ScreenShot,			"screenshot"	},
+	{ LIcIT_Button,				LIc_Bit_QuickSave,			"quick_save"	},
+	{ LIcIT_Button,				LIc_Bit_QuickLoad,			"quick_load"	},
 
 	{ LIcIT_Axis_Delta,			LIc_Aim_LR,					"aim_lr"		},
 	{ LIcIT_Axis_Delta,			LIc_Aim_UD,					"aim_ud"		},

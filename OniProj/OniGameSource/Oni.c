@@ -900,6 +900,12 @@ ONiRunGame(
 				break;
 		}
 
+		if (ONgGameState->local.pending_quick_load) {
+			ONgGameState->local.pending_quick_load = UUcFalse;
+
+			ONrGameState_QuickLoad();
+		}
+
 		{
 			if (rg_loop_iter < 5) {
 				UUrStartupMessage("[RG] iter %u done numFrames=%u gameTime=%u",
@@ -1085,6 +1091,9 @@ static void KeyConfig(void)
 					"bind r to reload",
 					"bind backslash to profile_toggle",
 					"bind fkey13 to screenshot",
+					"",
+					"bind fkey5 to quick_save",
+					"bind fkey9 to quick_load",
 					"",
 					"bind p to forward",
 					"bind l to stepleft",

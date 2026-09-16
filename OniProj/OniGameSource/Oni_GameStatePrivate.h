@@ -147,6 +147,7 @@ typedef struct ONtLocalGameState
 
 	char				pending_splash_screen[32];
 	UUtBool				pending_pause_screen;
+	UUtBool				pending_quick_load;
 } ONtLocalGameState;
 
 typedef enum

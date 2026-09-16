@@ -331,6 +331,9 @@ void ONrGameState_MakeContinue(UUtUns32 inSavePoint, UUtBool inAutoSave);
 void ONrGameState_UseContinue(void);
 void ONrGameState_ClearContinue(void);
 
+void ONrGameState_QuickSave(void);
+void ONrGameState_QuickLoad(void);
+
 // check to see if a character can perform an action
 struct ONtActionMarker;
 UUtBool ONrGameState_TryActionMarker(ONtCharacter *inCharacter, struct ONtActionMarker *inActionMarker, UUtBool inGenerous);
