@@ -43,6 +43,21 @@ GitHub release notes and gets stamped with the version + date.
   nothing was registered. It now names the pack-building step (#110). The
   README covers it too.
 
+### Quick save
+- You can now save and reload at any point mid-level: **F5** saves, **F9**
+  loads (#112). A reload rebuilds the level at the chapter you were in — the
+  state its designer placed — and then puts your changes back on top: doors
+  you opened or unlocked, glass you broke, and every enemy with the health
+  and position you left them at, dead ones included.
+- It snapshots the world, not time. Scripts you already triggered will run
+  again, enemies will work out their tactics from scratch, and the level's
+  clock starts over.
+- Your real save points are untouched: quick save writes its own file beside
+  `persist.dat` and never goes near your progress.
+- F5 and F9 are bound in a fresh install's `key_config.txt`. If you already
+  have one, add `bind fkey5 to quick_save` and `bind fkey9 to quick_load` to
+  it.
+
 ### Saved games
 - Your progress file is now backed up before the game ever resets it. If
   `persist.dat` can't be read, or was written by a build using a different
