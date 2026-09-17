@@ -172,3 +172,138 @@ cc -Wall -Wextra -DUUmSDL=1 \
 same window-manager message a keypress produces. That is not a mouse. Hit
 testing, focus behaviour and the on-screen look of the reused art against the
 partspec all still want a human at the keyboard.
+
+---
+
+## Combat block
+
+Hold a key to raise a guard, and keep it up as long as you hold it.
+
+Oni's own block is reactive and narrow. You cannot choose to guard: a block
+only happens while an attack is already landing, and only if you happen to be
+facing the attacker — the game checks for it within 20 degrees. Turn away and
+the guard quietly does not exist. This adds one you control, and it does not
+care which way you are facing.
+
+### Using it
+
+Hold **Z**. The guard goes up and stays up while you hold it; let go and you
+drop back to standing, or back to crouching if you were crouching.
+
+**Crouch-blocking** works: hold crouch first, then **Z**, and you block from a
+crouch. Holding **Z** first and crouching second does nothing — the guard
+cannot change your stance while it is up.
+
+**Rebinding.** A fresh install's `key_config.txt` gets the bind. If you already
+have one, add:
+
+```
+bind z to block
+```
+
+If your config has no block bind at all and `z` is free, the game binds it for
+you at startup and says so in the log. If `z` is already taken it leaves your
+binding alone and tells you block has no key, so nothing you set is ever
+silently reassigned.
+
+### What it covers
+
+- **Every angle.** Attacks from behind are covered the same as attacks from the
+  front. This is the whole point of the feature.
+- **Every height.** High and low attacks are both stopped. The game's own
+  reactive block can only stop whichever height the animation it picks is
+  authored for.
+
+### What it does not do
+
+- **It does not interrupt you.** The guard only comes up from a neutral stance
+  — standing, or crouching. If you are mid-punch, mid-kick, mid-jump or
+  mid-landing, you finish that first, and the guard comes up the moment it
+  ends. Holding the key through a punch does not cancel the punch.
+- **You cannot move while guarding.** No walking, no running, no jumping, no
+  switching weapons, no stance changes. Let go of the key for any of those.
+  There is no block-and-move animation in the game's data.
+- **Attacks flagged unblockable still hit you.** That is an authoring decision
+  on those attacks, the same one that already applied to the reactive block.
+- **Carrying a two-handed weapon means no guard at all**, key held or not. This
+  is the game's existing rule for the player, and it is unchanged.
+- **It is player-only.** Enemies cannot use it and are otherwise unaffected by
+  it, except that they cannot throw you while it is up.
+
+### For maintainers
+
+Three files carry the feature. `Oni_Character.c` owns the predicate
+`ONrCharacter_IsBlocking` and the any-angle answer in `ONrCharacter_CouldBlock`;
+`Oni_GameState.c` owns the held state and `HandleBlock`; `Oni_AI2_Melee.c` owns
+the AI's refusal to pick a throw it cannot land.
+
+**The hook already existed and was dead.** `LIc_Bit_Block` was defined, was
+registered against the action name `"block"`, and was read by zero lines of
+gameplay code — so `bind z to block` parsed and did nothing before this. Only a
+bound physical key can set that bit, which is what makes the feature
+player-only by construction rather than by convention.
+
+**State is `ONtActiveCharacter.blocking`**, recomputed from input every tick in
+`ONrCharacter_HandleHeartbeatInput`, not a character flag: `ONtCharacterFlags`
+is full — all 32 bits named — and it needs no lifecycle handling, since the
+active-character struct is cleared wholesale on activation, deactivation and
+level begin. It is written before that function's two early exits so releasing
+the key during an animation lock is still seen.
+
+**`HandleBlock` sits between `HandleStun` and `HandleLeaveStun`**, and claims
+only from a neutral stance. That placement does two jobs at once: claiming only
+from a neutral stance is what stops the guard interrupting your own attack, and
+sitting above `HandleLeaveStun` is what stops `blockStun` expiring from kicking
+a held guard back to standing, since that function's `Block` case forces Stand
+or Crouch. No edit to `HandleLeaveStun` was needed.
+
+**`CouldBlock` answers a held block early**, reporting both height flags true
+and skipping the facing test, and leaves the authored path below it untouched.
+The `IsDefensive` test is skipped for an actively blocking player, and that is
+load-bearing: `ONrCharacter_IsDefensive` computes `toIsCrouchOrStand` from
+`fromState` instead of `toState`, so once a block is held the animation's own
+states stop matching the crouch/stand list and defensiveness goes false for the
+whole hold. **That typo is deliberately left alone.** Correcting it would test
+`Blocking1`/`Crouch_Blocking1`, which are not in that list either, and would
+break the existing reactive block and AI blocking with it. It needs the
+`Blocking` states added to the list first, which is its own change.
+
+**Throws are refused at three sites, all reading the same predicate.**
+`AI2iMelee_TargetIsThrowable` is the primary gate — the AI consults it both when
+weighting techniques and again at execution, so one edit stops the AI choosing
+a throw it cannot land, which is what makes it look like a decision rather than
+a failure. `AttemptThrow` carries the same refusal next to the existing
+`ONrCharacter_IsKnockdownResistant` check. The third is the AI commit point in
+`RemapAnimationHook`, and it is not redundant: the executor sets the throw
+override and still has to land a punch, and the atomic-animation delay can hold
+that override for many frames, so there is a real window in which you raise the
+guard after the AI has committed. Gating inside `ONrPerformSpecificThrow`
+instead was considered and rejected — it returns `void` and both callers infer
+success from `specificThrow.srcThrow`.
+
+**The weighting path has to agree with the gate, which is why
+`AI2iMelee_WeightTechnique` is part of this change.** Refusing a throw only
+reads as a decision if the technique leaves the selection pool; otherwise the
+AI picks it, aborts at execution, blacklists it and picks it again. That
+function already zeroed the weight on the branches that refuse a throw for
+being from the wrong side or for having no active target, but the two below
+them — no throw animation from the target's current state, and an unthrowable
+target — labelled the technique and fell through with full weight. With this
+gate in place those two fire constantly, so they now zero as well. **This
+changes which technique an AI picks, so the level-sweep baselines move on the
+settle phase.** The shift is on level 19, it reproduces from that one commit
+alone, and it is deterministic across runs; the session entry in
+[HISTORY.md](HISTORY.md) has the bisect.
+
+**`ONI_BLOCK_TRACE`** (set to anything but `0`) turns on a `[block]` trace in
+`startup.txt`: the guard raising and the state it raised from, the guard
+dropping with whether the key was still held when it did, the angle of every
+hit a held guard absorbed, and every refused throw with its site. It exists
+because none of this is reachable from the sweep harness — `-sweep` never runs
+the main loop and no key is ever pressed — so these lines are the only way to
+see the feature's internals without a debugger.
+
+**Known gap:** the feature is build-verified and the key binding is verified
+headlessly, but every behaviour in the list above needs a human at the
+keyboard. See the session entry in [HISTORY.md](HISTORY.md) for exactly what
+was and was not checked.

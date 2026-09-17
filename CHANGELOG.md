@@ -12,6 +12,36 @@ GitHub release notes and gets stamped with the version + date.
 
 - New app icon for macOS 26: the Oni "O" is now a proper layered glass icon, so it follows your system icon style (default, dark, clear, tinted) instead of sitting on the white placeholder tile. On older toolchains the build falls back to a refreshed static icon with a dark background.
 
+### Combat block
+- You can now choose to block. Hold **Z** and the guard stays up for as long as
+  you hold it, and it stops attacks from **any direction** — stand with your
+  back to a Striker and you still take nothing. The game's own block only
+  happened while an attack was already landing and only if you happened to be
+  facing the attacker, so turning away meant no guard at all.
+- It covers high and low attacks alike. The reactive block could only ever stop
+  the height its animation was authored for.
+- Enemies cannot throw you while the guard is up.
+- It will not interrupt you. The guard rises from a standing or crouching
+  stance, so a punch, a kick or a jump finishes first and the guard comes up
+  the moment you are done — holding the key mid-punch does not cancel the
+  punch. Let go and you drop back to standing, or back to crouching.
+- You cannot move while guarding: no walking, jumping or weapon switching.
+  There is no block-and-move animation in the game's data.
+- Unblockable attacks still land, and carrying a two-handed weapon still means
+  no guard at all. Both are unchanged authoring rules.
+- **Z** is bound in a fresh install's `key_config.txt`. If your existing config
+  has no block bind, the game adds `bind z to block` for you at startup and
+  says so in the log. If you have already bound `z` to something else it leaves
+  your binding untouched and tells you block has no key, rather than quietly
+  taking the key over.
+
+### AI
+- Enemies no longer wind up a throw they cannot land. When the character they
+  are fighting cannot be thrown — you with your guard up, or anyone who shrugs
+  throws off — the AI used to commit to the throw anyway, abort it and pick
+  again, which read as the enemy changing its mind about once a second. Those
+  throws are now dropped from its choices before it picks one.
+
 ### Mods
 - New **OniMod Installer** app in the DMG. Drop a texture mod downloaded from
   the Oni Mod Depot (the zip, or its unzipped folder) onto it and it builds the
