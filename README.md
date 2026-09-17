@@ -1,3 +1,12 @@
+# Oni-Extended
+
+This repository is for agentic experiments, built on
+[andiyar/OniARM64](https://github.com/andiyar/OniARM64). The port is upstream's
+work; what this fork adds on top of it is documented in
+[EXTENSIONS.md](EXTENSIONS.md).
+
+---
+
 <div align="center">
 
 <img src="docs/assets/oni-icon-256.png" alt="Oni" width="160" />
