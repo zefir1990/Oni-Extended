@@ -3014,6 +3014,10 @@ static UUtBool AI2iMelee_WeightLocalMovement(ONtCharacter *ioCharacter, AI2tMele
 // check to see if the target is throwable
 static UUtBool AI2iMelee_TargetIsThrowable(ONtCharacter *ioCharacter, ONtActiveCharacter *ioActiveCharacter)
 {
+	if (ONrCharacter_IsBlocking(ioCharacter)) {
+		return UUcFalse;
+	}
+
 	if (ioCharacter->characterClass->knockdownResistant) {
 		return UUcFalse;
 	}

@@ -11911,6 +11911,10 @@ static const TRtAnimation *AttemptThrow(
 		goto exit;
 	}
 
+	if (ONrCharacter_IsBlocking(target)) {
+		goto exit;
+	}
+
 	target_active = ONrForceActiveCharacter(target);
 	if (target_active == NULL) {
 		goto exit;
@@ -12007,7 +12011,7 @@ static const TRtAnimation *RemapAnimationHook(ONtCharacter *ioCharacter, ONtActi
 				COrConsole_Printf("### RemapAnimationHook: AI %s tried to throw %s but facing delta %f > 45 degrees",
 								ioCharacter->player_name, target->player_name, specific_throw.facingOffset * M3cRadToDeg);
 
-			} else {
+			} else if (!ONrCharacter_IsBlocking(target)) {
 				// attempt the throw
 				AttemptSpecificThrow(ioCharacter, ioActiveCharacter, target, target_active,
 									MUmVector_GetDistanceSquared(ioCharacter->location, target->location),
