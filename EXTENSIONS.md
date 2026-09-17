@@ -32,6 +32,8 @@ the work happens — there is no confirmation step. **Quick Load** is greyed out
 until a quick save exists, so it cannot do anything surprising on a fresh
 install.
 
+<img src="images/quick-save-quick-load.jpg" width="640" alt="The Oni Data Pad, with Quick Save and Quick Load in the left column beneath the Help tab" />
+
 **Keys.** **F5** saves, **F9** loads. A fresh install's `key_config.txt` gets
 both. If you already have one, add them:
 
