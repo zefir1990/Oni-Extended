@@ -7793,6 +7793,35 @@ UUtBool ONrCharacter_IsBlocking(const ONtCharacter *inCharacter)
 	return UUcTrue;
 }
 
+static UUtBool ONiCharacter_BlockTraceIsEnabled(void)
+{
+	static int enabled = -1;
+
+	if (enabled < 0) {
+		const char *env = getenv("ONI_BLOCK_TRACE");
+
+		enabled = ((env != NULL) && (env[0] != '\0') && (strcmp(env, "0") != 0)) ? 1 : 0;
+	}
+
+	return (UUtBool) enabled;
+}
+
+void ONrCharacter_BlockTrace(const char *inFormat, ...)
+{
+	char buffer[1024];
+	va_list arglist;
+
+	if (!ONiCharacter_BlockTraceIsEnabled()) {
+		return;
+	}
+
+	va_start(arglist, inFormat);
+	vsnprintf(buffer, sizeof(buffer), inFormat, arglist);
+	va_end(arglist);
+
+	UUrStartupMessage("[block] %s", buffer);
+}
+
 UUtBool ONrCharacter_IsIdle(const ONtCharacter *inCharacter)
 {
 	switch (ONrCharacter_GetAnimType(inCharacter))
@@ -10030,6 +10059,12 @@ static void	HandleAttackMask(
 			}
 		}
 
+		if (ONrCharacter_IsBlocking(inDefender)) {
+			ONrCharacter_BlockTrace("held guard hit blockLow=%d blockHigh=%d attackLow=%d attackHigh=%d canBlock=%d angle=%.1f",
+									blockLow, blockHigh, attackLow, attackHigh, canBlock,
+									ONrCharacter_RelativeAngleToCharacter(inDefender, inAttacker) * M3cRadToDeg);
+		}
+
 		if (canBlock && inDefender->blockFunction) {
 			canBlock = inDefender->blockFunction(inDefender);
 		}
@@ -11912,6 +11947,8 @@ static const TRtAnimation *AttemptThrow(
 	}
 
 	if (ONrCharacter_IsBlocking(target)) {
+		ONrCharacter_BlockTrace("throw refused site=attempt target=%s", target->player_name);
+
 		goto exit;
 	}
 
@@ -12030,6 +12067,9 @@ static const TRtAnimation *RemapAnimationHook(ONtCharacter *ioCharacter, ONtActi
 									ioCharacter->player_name, target->player_name,
 									TMrInstance_GetInstanceName(throwanim), TMrInstance_GetInstanceName(desiredtargetanim));
 				}
+			} else {
+				ONrCharacter_BlockTrace("throw refused site=commit attacker=%s target=%s",
+										ioCharacter->player_name, target->player_name);
 			}
 		}
 

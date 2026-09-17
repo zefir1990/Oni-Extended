@@ -1699,9 +1699,14 @@ static UUtBool HandleStun(const ONtInputState *inInput, ONtCharacter *ioCharacte
 
 static UUtBool HandleBlock(const ONtInputState *inInput, ONtCharacter *ioCharacter, ONtActiveCharacter *ioActiveCharacter)
 {
+	TRtAnimState block_source_state;
 	UUtBool is_neutral_stance;
 
 	if (!ONrCharacter_IsBlocking(ioCharacter)) {
+		if (ioActiveCharacter->curAnimType == ONcAnimType_Block) {
+			ONrCharacter_BlockTrace("guard dropped reason=%s", ioActiveCharacter->blocking ? "key-still-held" : "key-released");
+		}
+
 		return UUcFalse;
 	}
 
@@ -1723,9 +1728,17 @@ static UUtBool HandleBlock(const ONtInputState *inInput, ONtCharacter *ioCharact
 		return UUcFalse;
 	}
 
+	block_source_state = ioActiveCharacter->nextAnimState;
+
 	ONrCharacter_Block(ioCharacter, ioActiveCharacter);
 
-	return (ioActiveCharacter->curAnimType == ONcAnimType_Block);
+	if (ioActiveCharacter->curAnimType != ONcAnimType_Block) {
+		return UUcFalse;
+	}
+
+	ONrCharacter_BlockTrace("guard raised state=%s", ONrAnimStateToString(block_source_state));
+
+	return UUcTrue;
 }
 
 

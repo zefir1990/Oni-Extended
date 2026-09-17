@@ -8002,6 +8002,11 @@ static UUtBool AI2iMelee_Throw_Update(ONtCharacter *ioCharacter, AI2tMeleeState 
 
 	// check that our target isn't invulnerable
 	if (!AI2iMelee_TargetIsThrowable(ioMeleeState->target, active_target)) {
+		if (ONrCharacter_IsBlocking(ioMeleeState->target)) {
+			ONrCharacter_BlockTrace("throw refused site=ai_abort attacker=%s target=%s",
+									ioCharacter->player_name, ioMeleeState->target->player_name);
+		}
+
 		AI2iMeleeState_AbortTechnique(ioCharacter, ioMeleeState);
 		return UUcTrue;
 	}
