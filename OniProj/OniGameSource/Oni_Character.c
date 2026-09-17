@@ -7761,6 +7761,38 @@ UUtBool ONrCharacter_IsDefensive(const ONtCharacter *inCharacter)
 	return canBlock;
 }
 
+UUtBool ONrCharacter_IsBlocking(const ONtCharacter *inCharacter)
+{
+	ONtActiveCharacter *active_character;
+
+	if (inCharacter == NULL) {
+		return UUcFalse;
+	}
+
+	if (inCharacter->charType != ONcChar_Player) {
+		return UUcFalse;
+	}
+
+	if (inCharacter->flags & ONcCharacterFlag_Dead) {
+		return UUcFalse;
+	}
+
+	active_character = ONrGetActiveCharacter(inCharacter);
+	if (active_character == NULL) {
+		return UUcFalse;
+	}
+
+	if (!active_character->blocking) {
+		return UUcFalse;
+	}
+
+	if (active_character->hitStun > 0) {
+		return UUcFalse;
+	}
+
+	return UUcTrue;
+}
+
 UUtBool ONrCharacter_IsIdle(const ONtCharacter *inCharacter)
 {
 	switch (ONrCharacter_GetAnimType(inCharacter))
@@ -9815,6 +9847,7 @@ UUtBool ONrCharacter_CouldBlock(ONtCharacter *inDefender, ONtCharacter *inAttack
 	const TRtAnimation *blockAnim;
 	const float blockWidth = ONgBlockAngle * M3cDegToRad;
 	float relativeFacing;
+	UUtBool is_actively_blocking;
 	ONtActiveCharacter *defender_activechar;
 
 	if (ONcChar_AI2 == inDefender->charType) {
@@ -9832,7 +9865,9 @@ UUtBool ONrCharacter_CouldBlock(ONtCharacter *inDefender, ONtCharacter *inAttack
 		}
 	}
 
-	if (!ONrCharacter_IsDefensive(inDefender)) {
+	is_actively_blocking = ONrCharacter_IsBlocking(inDefender);
+
+	if ((!is_actively_blocking) && (!ONrCharacter_IsDefensive(inDefender))) {
 		return UUcFalse;
 	}
 
@@ -9842,6 +9877,13 @@ UUtBool ONrCharacter_CouldBlock(ONtCharacter *inDefender, ONtCharacter *inAttack
 
 	if (defender_activechar->hitStun > 0)
 		return UUcFalse;
+
+	if (is_actively_blocking) {
+		*outBlockLow = UUcTrue;
+		*outBlockHigh = UUcTrue;
+
+		return UUcTrue;
+	}
 
 	blockAnim = ONiAnimation_FindBlock(inDefender, defender_activechar);
 	if (blockAnim == NULL)

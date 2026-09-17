@@ -879,6 +879,7 @@ struct ONtActiveCharacter {
 	LItButtonBits			inputOld;
 	UUtUns32				last_forward_tap;		// used for sprinting
 	UUtBool					frozen;
+	UUtBool					blocking;
 
 	// aiming
 	UUtBool					isAiming;
@@ -1141,6 +1142,7 @@ UUtBool ONrCharacter_IsStandingStill(const ONtCharacter *inCharacter);
 UUtBool ONrCharacter_IsVictimAnimation(const ONtCharacter *inCharacter);
 UUtBool ONrCharacter_IsIdle(const ONtCharacter *inCharacter);
 UUtBool ONrCharacter_IsDefensive(const ONtCharacter *inCharacter);
+UUtBool ONrCharacter_IsBlocking(const ONtCharacter *inCharacter);
 UUtBool ONrCharacter_IsStill(const ONtCharacter *inCharacter);
 UUtBool ONrCharacter_IsMovingBack(const ONtCharacter *inCharacter);
 UUtBool ONrCharacter_IsStandingRunning(const ONtCharacter *inCharacter);

@@ -1697,6 +1697,37 @@ static UUtBool HandleStun(const ONtInputState *inInput, ONtCharacter *ioCharacte
 	return handled;
 }
 
+static UUtBool HandleBlock(const ONtInputState *inInput, ONtCharacter *ioCharacter, ONtActiveCharacter *ioActiveCharacter)
+{
+	UUtBool is_neutral_stance;
+
+	if (!ONrCharacter_IsBlocking(ioCharacter)) {
+		return UUcFalse;
+	}
+
+	if ((ioActiveCharacter->hitStun > 0) || (ioActiveCharacter->staggerStun > 0) ||
+		(ioActiveCharacter->dizzyStun > 0)) {
+		return UUcFalse;
+	}
+
+	if (ioActiveCharacter->curAnimType == ONcAnimType_Block) {
+		ONrCharacter_FightMode(ioCharacter);
+
+		return UUcTrue;
+	}
+
+	is_neutral_stance = (ioActiveCharacter->curAnimType == ONcAnimType_Stand) ||
+						(ioActiveCharacter->curAnimType == ONcAnimType_Crouch);
+
+	if (!is_neutral_stance) {
+		return UUcFalse;
+	}
+
+	ONrCharacter_Block(ioCharacter, ioActiveCharacter);
+
+	return (ioActiveCharacter->curAnimType == ONcAnimType_Block);
+}
+
 
 static UUtBool HandleStartSidestep(const ONtInputState *inInput, ONtCharacter *ioCharacter, ONtActiveCharacter *ioActiveCharacter)
 {
@@ -3734,6 +3765,17 @@ void ONrCharacter_HandleHeartbeatInput(ONtCharacter *ioCharacter, ONtActiveChara
 		}
 	}
 
+	ioActiveCharacter->blocking = UUcFalse;
+
+	if ((ONcChar_Player == ioCharacter->charType) &&
+		(ioCharacter == ONgGameState->local.playerCharacter) &&
+		((ioCharacter->flags & ONcCharacterFlag_Dead) == 0) &&
+		(!ONrCharacter_IsPlayingFilm(ioCharacter)) &&
+		(!ONrCharacter_IsBeingThrown(ioActiveCharacter)) &&
+		((input.buttonIsDown & LIc_BitMask_Block) != 0)) {
+		ioActiveCharacter->blocking = UUcTrue;
+	}
+
 	if (ioCharacter->flags & ONcCharacterFlag_Dead) {
 		if (ONrCharacter_IsVictimAnimation(ioCharacter)) {
 			goto exit;
@@ -3846,6 +3888,9 @@ void ONrCharacter_HandleHeartbeatInput(ONtCharacter *ioCharacter, ONtActiveChara
 
 		found = HandleStun(&input, ioCharacter, ioActiveCharacter);
 		if (found) { ONrCharacter_DebugHandle("HandleStun"); break; }
+
+		found = HandleBlock(&input, ioCharacter, ioActiveCharacter);
+		if (found) { ONrCharacter_DebugHandle("HandleBlock"); break; }
 
 		found = HandleLeaveStun(&input, ioCharacter, ioActiveCharacter);
 		if (found) { ONrCharacter_DebugHandle("HandleLeaveStun"); break; }
