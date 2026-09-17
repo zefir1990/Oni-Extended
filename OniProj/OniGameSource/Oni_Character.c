@@ -11982,7 +11982,7 @@ static const TRtAnimation *RemapAnimationHook(ONtCharacter *ioCharacter, ONtActi
 				} else {
 					COrConsole_Printf("### RemapAnimationHook: AI %s tried to throw %s (%s/%s) but was unable to",
 									ioCharacter->player_name, target->player_name,
-									TMrInstance_GetInstanceName(throwanim), TMrInstance_GetInstanceName(specific_throw.dstThrow));
+									TMrInstance_GetInstanceName(throwanim), TMrInstance_GetInstanceName(desiredtargetanim));
 				}
 			}
 		}
