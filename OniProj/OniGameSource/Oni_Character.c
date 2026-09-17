@@ -722,6 +722,7 @@ static float ONgAutoAim_Arc = 90.f;
 static float ONgAutoAim_Distance = 40.f;
 static UUtInt32 gDebugCharacterTarget = 0;
 static UUtBool gDebugCharacters = UUcFalse;
+#define ONcMukadeCharacterClassName "super_ninja_1"
 static UUtBool gDebugOverlay = UUcFalse;
 static UUtBool gDebugCharactersSphereTree = UUcFalse;
 static UUtBool gPrintSound = UUcFalse;
@@ -5333,6 +5334,16 @@ static void ONrGameState_UpdateTriggers(void)
 	return;
 }
 
+static void ONiCharacter_ReportMukadeHitPoints(ONtCharacter *ioCharacter)
+{
+	fprintf(stdout, "[MUKADE-HP] name=%s hp=%u max=%u\n",
+			ioCharacter->player_name, (unsigned) ioCharacter->hitPoints,
+			(unsigned) ioCharacter->maxHitPoints);
+	fflush(stdout);
+
+	return;
+}
+
 void ONrGameState_UpdateCharacters(void)
 {
 	ONtCharacter *character;
@@ -5342,6 +5353,7 @@ void ONrGameState_UpdateCharacters(void)
 
 	ONtCharacter **present_character_list;
 	UUtUns32 present_character_count;
+	ONtCharacterClass *mukade_character_class;
 
 	ONtCharacter **active_character_list;
 	UUtUns32 active_character_count;
@@ -5475,11 +5487,17 @@ void ONrGameState_UpdateCharacters(void)
 	present_character_list = ONrGameState_PresentCharacterList_Get();
 	present_character_count = ONrGameState_PresentCharacterList_Count();
 
+	mukade_character_class = ONrGetCharacterClass(ONcMukadeCharacterClassName);
+
 	for(itr = 0; itr < present_character_count; itr++) {
 		character = present_character_list[itr];
 
 		if (character->flags & ONcCharacterFlag_InUse) {
 			ONtCharacterIndexType index = ONrCharacter_GetIndex(character);
+
+			if ((mukade_character_class != NULL) && (character->characterClass == mukade_character_class)) {
+				ONiCharacter_ReportMukadeHitPoints(character);
+			}
 
 			if (gDebugCharacters && (index == gDebugCharacterTarget)) {
 				ONrGameState_DoCharacterDebugFrame(character);
