@@ -195,11 +195,29 @@ crouch. Holding **Z** first and crouching second does nothing — the guard
 cannot change your stance while it is up.
 
 **Rebinding.** A fresh install's `key_config.txt` gets the bind. If you already
-have one, add:
+have one, add a line to it:
+
+```
+~/Library/Application Support/OniARM64/key_config.txt
+```
 
 ```
 bind z to block
 ```
+
+There is no key-rebinding screen in this port — the in-game windows are the
+developer tools — so the file is the way to do it. Any name the input system
+knows will carry the action: letters, `space`, `leftshift`, `fkey1` through
+`fkey12`, and `mousebutton1` through `mousebutton4`.
+
+Two things to know before you pick:
+
+- **A key carries one action.** Binding a key that already does something takes
+  it away from what it was doing — `bind mousebutton2 to block` would leave you
+  with no `fire2`. Pick a free key unless you mean to move the action.
+- **An action can have two keys.** Both of them work. Your config already does
+  this for crouch, and for forward, so `bind q to block` alongside `bind z to
+  block` gives you both.
 
 If your config has no block bind at all and `z` is free, the game binds it for
 you at startup and says so in the log. If `z` is already taken it leaves your
@@ -213,6 +231,12 @@ silently reassigned.
 - **Every height.** High and low attacks are both stopped. The game's own
   reactive block can only stop whichever height the animation it picks is
   authored for.
+- **Attacks flagged unblockable.** The reactive block skips these entirely, and
+  they used to land on a held guard too. They no longer do — a guard you choose
+  to hold is the one defence the game cannot route around.
+- **Super moves, in full.** Against the game's own block an attack flagged as a
+  super move penetrates even when the block succeeds, landing half its base
+  damage and half its knockback. The held guard stops it outright.
 
 ### What it does not do
 
@@ -223,15 +247,9 @@ silently reassigned.
 - **You cannot move while guarding.** No walking, no running, no jumping, no
   switching weapons, no stance changes. Let go of the key for any of those.
   There is no block-and-move animation in the game's data.
-- **Attacks flagged unblockable are stopped too.** The reactive block skips
-  those entirely; the held guard does not. This is deliberate — the guard is
-  something you choose to hold, so it is the one defence that answers
-  everything.
-- **Super moves are stopped in full.** Against the game's own block an attack
-  flagged as a super move penetrates even when the block succeeds, landing half
-  its base damage and half its knockback. The held guard stops it outright.
 - **Carrying a two-handed weapon means no guard at all**, key held or not. This
-  is the game's existing rule for the player, and it is unchanged.
+  is the game's existing rule for the player and it is unchanged. That check
+  comes first, so a rifle in hand is no guard against any of the above either.
 - **It is player-only.** Enemies cannot use it and are otherwise unaffected by
   it, except that they cannot throw you while it is up.
 
@@ -248,6 +266,13 @@ damage path asks before deciding an attack is covered. `ONrCharacter_IsGuarding`
 adds "and neither staggered nor dizzy" and is what `HandleBlock` and the
 movement code ask; a staggered character must still be shoved around, so the
 guard cannot own their movement while a stagger animation is playing.
+
+**Known inconsistency between the two.** `CouldBlock` asks `IsBlocking`, so a
+player who is staggered or dizzy with the key still held blocks normal attacks
+even though the guard animation has dropped and the movement pin has let go.
+Tightening `CouldBlock` to `IsGuarding` would close it and is the obvious next
+change, but it shifts the reactive block's behaviour for a stunned player and
+was not asked for, so it is left open.
 
 **The hook already existed and was dead.** `LIc_Bit_Block` was defined, was
 registered against the action name `"block"`, and was read by zero lines of
@@ -334,8 +359,8 @@ alone, and it is deterministic across runs; the session entry in
 
 **`ONI_BLOCK_TRACE`** (set to anything but `0`) turns on a `[block]` trace in
 `startup.txt`: the guard raising and the state it raised from, the guard
-dropping with whether the key was still held when it did, the angle of every
-hit a held guard absorbed, and every refused throw with its site. It exists
+dropping with why it dropped, the height flags and angle of every hit a held
+guard absorbed, and every refused throw with its site. It exists
 because none of this is reachable from the sweep harness — `-sweep` never runs
 the main loop and no key is ever pressed — so these lines are the only way to
 see the feature's internals without a debugger.
