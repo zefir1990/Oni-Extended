@@ -10022,6 +10022,7 @@ static void	HandleAttackMask(
 	ONtCharacterParticleInstance *particle;
 	P3tEffectData effect_data;
 	UUtBool isUnstoppable, isOmnipotent, hasSuperShield;
+	UUtBool is_actively_blocking;
 	float damage_multiplier;
 
 
@@ -10059,8 +10060,10 @@ static void	HandleAttackMask(
 	ONrCharacter_GetAttackVector(inAttacker, inActiveAttacker, &attackerVector);
 	ONrCharacter_GetFacingVector(inDefender, &defenderVector);
 
+	is_actively_blocking = ONrCharacter_IsBlocking(inDefender);
+
 	// can we block this attack ?
-	if (0 == (inAttack->flags & (1 << ONcAttackFlag_Unblockable)))
+	if (is_actively_blocking || (0 == (inAttack->flags & (1 << ONcAttackFlag_Unblockable))))
 	{
 		UUtBool attackHigh = (inAttack->flags & (1 << ONcAttackFlag_AttackHigh)) > 0;
 		UUtBool attackLow = (inAttack->flags & (1 << ONcAttackFlag_AttackLow)) > 0;
@@ -10083,7 +10086,7 @@ static void	HandleAttackMask(
 			}
 		}
 
-		if (ONrCharacter_IsBlocking(inDefender)) {
+		if (is_actively_blocking) {
 			ONrCharacter_BlockTrace("held guard hit blockLow=%d blockHigh=%d attackLow=%d attackHigh=%d canBlock=%d angle=%.1f",
 									blockLow, blockHigh, attackLow, attackHigh, canBlock,
 									ONrCharacter_RelativeAngleToCharacter(inDefender, inAttacker) * M3cRadToDeg);
@@ -10155,7 +10158,7 @@ static void	HandleAttackMask(
 				UUmTrig_Clip(inDefender->facing);
 			}
 
-			if (inAttack->flags & (1 << ONcAttackFlag_SpecialMove)) {
+			if ((!is_actively_blocking) && (inAttack->flags & (1 << ONcAttackFlag_SpecialMove))) {
 				attack_result = ONcAttack_Hit;
 
 				// the super move penetrates through the block but loses half its effect
