@@ -190,6 +190,8 @@ care which way you are facing.
 Hold **Z**. The guard goes up and stays up while you hold it; let go and you
 drop back to standing, or back to crouching if you were crouching.
 
+<img src="images/block.jpg" width="640" alt="Konoko with her guard up, absorbing a punch from a Striker" />
+
 **Crouch-blocking** works: hold crouch first, then **Z**, and you block from a
 crouch. Holding **Z** first and crouching second does nothing — the guard
 cannot change your stance while it is up.
