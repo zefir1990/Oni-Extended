@@ -223,8 +223,13 @@ silently reassigned.
 - **You cannot move while guarding.** No walking, no running, no jumping, no
   switching weapons, no stance changes. Let go of the key for any of those.
   There is no block-and-move animation in the game's data.
-- **Attacks flagged unblockable still hit you.** That is an authoring decision
-  on those attacks, the same one that already applied to the reactive block.
+- **Attacks flagged unblockable are stopped too.** The reactive block skips
+  those entirely; the held guard does not. This is deliberate — the guard is
+  something you choose to hold, so it is the one defence that answers
+  everything.
+- **Super moves are stopped in full.** Against the game's own block an attack
+  flagged as a super move penetrates even when the block succeeds, landing half
+  its base damage and half its knockback. The held guard stops it outright.
 - **Carrying a two-handed weapon means no guard at all**, key held or not. This
   is the game's existing rule for the player, and it is unchanged.
 - **It is player-only.** Enemies cannot use it and are otherwise unaffected by
@@ -232,10 +237,17 @@ silently reassigned.
 
 ### For maintainers
 
-Three files carry the feature. `Oni_Character.c` owns the predicate
-`ONrCharacter_IsBlocking` and the any-angle answer in `ONrCharacter_CouldBlock`;
-`Oni_GameState.c` owns the held state and `HandleBlock`; `Oni_AI2_Melee.c` owns
-the AI's refusal to pick a throw it cannot land.
+Three files carry the feature. `Oni_Character.c` owns the predicates,
+the any-angle answer in `ONrCharacter_CouldBlock` and what a held guard stops in
+`HandleAttackMask`; `Oni_GameState.c` owns the held state and `HandleBlock`;
+`Oni_AI2_Melee.c` owns the AI's refusal to pick a throw it cannot land.
+
+**Two predicates, two questions.** `ONrCharacter_IsBlocking` means "the guard is
+up" — the key is held and the character is not in hit stun — and it is what the
+damage path asks before deciding an attack is covered. `ONrCharacter_IsGuarding`
+adds "and neither staggered nor dizzy" and is what `HandleBlock` and the
+movement code ask; a staggered character must still be shoved around, so the
+guard cannot own their movement while a stagger animation is playing.
 
 **The hook already existed and was dead.** `LIc_Bit_Block` was defined, was
 registered against the action name `"block"`, and was read by zero lines of
@@ -267,6 +279,31 @@ whole hold. **That typo is deliberately left alone.** Correcting it would test
 `Blocking1`/`Crouch_Blocking1`, which are not in that list either, and would
 break the existing reactive block and AI blocking with it. It needs the
 `Blocking` states added to the list first, which is its own change.
+
+**A held guard also answers the two attacks that beat a block.**
+`HandleAttackMask` skips the whole block test for anything flagged
+`ONcAttackFlag_Unblockable`, and lets a `ONcAttackFlag_SpecialMove` attack
+through a successful block for half its base damage. Both gates now yield to
+`ONrCharacter_IsBlocking`, so an actively blocking player is the one defender
+the game cannot route around. The authored rules are untouched for everyone
+else: an AI defender still cannot block an unblockable, and a super move still
+penetrates an AI's block. The two-handed-weapon refusal sits above both in
+`CouldBlock` and still applies, so a held guard behind a rifle is still no
+guard.
+
+**A held guard owns the character's ground movement.** The block animation is a
+one-shot reaction with authored root motion, and `KONCOMblock1_end` and
+`KONCOMblock2_end` are typed `ONcAnimType_Stand`, so `HandleBlock` reads the
+frame they begin as a neutral stance and re-raises the guard. Replaying that
+reaction on a loop applied its step-back every cycle — the character drifted
+backwards at about 2 units/sec while the key was held. `ONrGameState_DoCharacterFrame`
+now takes no animation movement at all while `ONrCharacter_IsGuarding` is true:
+the frame's movement is the zero vector plus gravity, and knockback is added
+past that point so a blocked hit still lands as a shove. Airborne characters
+resolve their velocity in an earlier branch and a carried character takes a
+separate arm, so neither is affected. The re-raise loop itself is unchanged —
+the guard still cycles its two animation variants while held, it just no longer
+moves you.
 
 **Throws are refused at three sites, all reading the same predicate.**
 `AI2iMelee_TargetIsThrowable` is the primary gate — the AI consults it both when

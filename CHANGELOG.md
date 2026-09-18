@@ -27,8 +27,13 @@ GitHub release notes and gets stamped with the version + date.
   punch. Let go and you drop back to standing, or back to crouching.
 - You cannot move while guarding: no walking, jumping or weapon switching.
   There is no block-and-move animation in the game's data.
-- Unblockable attacks still land, and carrying a two-handed weapon still means
-  no guard at all. Both are unchanged authoring rules.
+- It stops everything a melee attack can throw at you, including the two kinds
+  that otherwise get through a block: attacks authored unblockable, which
+  normally skip the block test altogether, and super moves, which normally
+  penetrate a successful block for half damage and half knockback. Both are
+  fully stopped while the guard is up.
+- Carrying a two-handed weapon still means no guard at all. That is the game's
+  existing rule for the player, and it is unchanged.
 - **Z** is bound in a fresh install's `key_config.txt`. If your existing config
   has no block bind, the game adds `bind z to block` for you at startup and
   says so in the log. If you have already bound `z` to something else it leaves
