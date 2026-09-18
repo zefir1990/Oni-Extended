@@ -66,3 +66,7 @@ debugger.txt
 #############################################
 # Built HD overlay packs (scripts/build-hd-overlays.sh output)
 /dist/
+
+#############################################
+# Unsigned release output (scripts/build-release.sh)
+/release/
