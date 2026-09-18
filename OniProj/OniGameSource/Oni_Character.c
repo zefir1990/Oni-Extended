@@ -4313,6 +4313,10 @@ static void ONrGameState_DoCharacterFrame(
 				active_character->inAirControl.velocity.y -= airConstants->jumpGravity;
 				active_character->inAirControl.velocity.y = UUmMax(active_character->inAirControl.velocity.y, airConstants->maxVelocity);
 			}
+			else if (ONrCharacter_IsGuarding(ioCharacter)) {
+				moved = MUgZeroVector;
+				moved.y -= ONrGameState_CalculateGravity(ioCharacter, active_character);
+			}
 			else if (active_character->stitch.stitching) {
 				float toAmt = ((float) active_character->stitch.itr) / ((float) active_character->stitch.count);
 				float fromAmt = 1 - toAmt;
@@ -7761,6 +7765,87 @@ UUtBool ONrCharacter_IsDefensive(const ONtCharacter *inCharacter)
 	return canBlock;
 }
 
+UUtBool ONrCharacter_IsBlocking(const ONtCharacter *inCharacter)
+{
+	ONtActiveCharacter *active_character;
+
+	if (inCharacter == NULL) {
+		return UUcFalse;
+	}
+
+	if (inCharacter->charType != ONcChar_Player) {
+		return UUcFalse;
+	}
+
+	if (inCharacter->flags & ONcCharacterFlag_Dead) {
+		return UUcFalse;
+	}
+
+	active_character = ONrGetActiveCharacter(inCharacter);
+	if (active_character == NULL) {
+		return UUcFalse;
+	}
+
+	if (!active_character->blocking) {
+		return UUcFalse;
+	}
+
+	if (active_character->hitStun > 0) {
+		return UUcFalse;
+	}
+
+	return UUcTrue;
+}
+
+UUtBool ONrCharacter_IsGuarding(const ONtCharacter *inCharacter)
+{
+	ONtActiveCharacter *active_character;
+
+	if (!ONrCharacter_IsBlocking(inCharacter)) {
+		return UUcFalse;
+	}
+
+	active_character = ONrGetActiveCharacter((ONtCharacter *) inCharacter);
+	if (active_character == NULL) {
+		return UUcFalse;
+	}
+
+	if ((active_character->staggerStun > 0) || (active_character->dizzyStun > 0)) {
+		return UUcFalse;
+	}
+
+	return UUcTrue;
+}
+
+static UUtBool ONiCharacter_BlockTraceIsEnabled(void)
+{
+	static int enabled = -1;
+
+	if (enabled < 0) {
+		const char *env = getenv("ONI_BLOCK_TRACE");
+
+		enabled = ((env != NULL) && (env[0] != '\0') && (strcmp(env, "0") != 0)) ? 1 : 0;
+	}
+
+	return (UUtBool) enabled;
+}
+
+void ONrCharacter_BlockTrace(const char *inFormat, ...)
+{
+	char buffer[1024];
+	va_list arglist;
+
+	if (!ONiCharacter_BlockTraceIsEnabled()) {
+		return;
+	}
+
+	va_start(arglist, inFormat);
+	vsnprintf(buffer, sizeof(buffer), inFormat, arglist);
+	va_end(arglist);
+
+	UUrStartupMessage("[block] %s", buffer);
+}
+
 UUtBool ONrCharacter_IsIdle(const ONtCharacter *inCharacter)
 {
 	switch (ONrCharacter_GetAnimType(inCharacter))
@@ -9815,6 +9900,7 @@ UUtBool ONrCharacter_CouldBlock(ONtCharacter *inDefender, ONtCharacter *inAttack
 	const TRtAnimation *blockAnim;
 	const float blockWidth = ONgBlockAngle * M3cDegToRad;
 	float relativeFacing;
+	UUtBool is_actively_blocking;
 	ONtActiveCharacter *defender_activechar;
 
 	if (ONcChar_AI2 == inDefender->charType) {
@@ -9832,7 +9918,9 @@ UUtBool ONrCharacter_CouldBlock(ONtCharacter *inDefender, ONtCharacter *inAttack
 		}
 	}
 
-	if (!ONrCharacter_IsDefensive(inDefender)) {
+	is_actively_blocking = ONrCharacter_IsBlocking(inDefender);
+
+	if ((!is_actively_blocking) && (!ONrCharacter_IsDefensive(inDefender))) {
 		return UUcFalse;
 	}
 
@@ -9842,6 +9930,13 @@ UUtBool ONrCharacter_CouldBlock(ONtCharacter *inDefender, ONtCharacter *inAttack
 
 	if (defender_activechar->hitStun > 0)
 		return UUcFalse;
+
+	if (is_actively_blocking) {
+		*outBlockLow = UUcTrue;
+		*outBlockHigh = UUcTrue;
+
+		return UUcTrue;
+	}
 
 	blockAnim = ONiAnimation_FindBlock(inDefender, defender_activechar);
 	if (blockAnim == NULL)
@@ -9927,6 +10022,7 @@ static void	HandleAttackMask(
 	ONtCharacterParticleInstance *particle;
 	P3tEffectData effect_data;
 	UUtBool isUnstoppable, isOmnipotent, hasSuperShield;
+	UUtBool is_actively_blocking;
 	float damage_multiplier;
 
 
@@ -9964,8 +10060,10 @@ static void	HandleAttackMask(
 	ONrCharacter_GetAttackVector(inAttacker, inActiveAttacker, &attackerVector);
 	ONrCharacter_GetFacingVector(inDefender, &defenderVector);
 
+	is_actively_blocking = ONrCharacter_IsBlocking(inDefender);
+
 	// can we block this attack ?
-	if (0 == (inAttack->flags & (1 << ONcAttackFlag_Unblockable)))
+	if (is_actively_blocking || (0 == (inAttack->flags & (1 << ONcAttackFlag_Unblockable))))
 	{
 		UUtBool attackHigh = (inAttack->flags & (1 << ONcAttackFlag_AttackHigh)) > 0;
 		UUtBool attackLow = (inAttack->flags & (1 << ONcAttackFlag_AttackLow)) > 0;
@@ -9986,6 +10084,12 @@ static void	HandleAttackMask(
 			if (attackLow && !blockLow) {
 				canBlock = UUcFalse;
 			}
+		}
+
+		if (is_actively_blocking) {
+			ONrCharacter_BlockTrace("held guard hit blockLow=%d blockHigh=%d attackLow=%d attackHigh=%d canBlock=%d angle=%.1f",
+									blockLow, blockHigh, attackLow, attackHigh, canBlock,
+									ONrCharacter_RelativeAngleToCharacter(inDefender, inAttacker) * M3cRadToDeg);
 		}
 
 		if (canBlock && inDefender->blockFunction) {
@@ -10054,7 +10158,7 @@ static void	HandleAttackMask(
 				UUmTrig_Clip(inDefender->facing);
 			}
 
-			if (inAttack->flags & (1 << ONcAttackFlag_SpecialMove)) {
+			if ((!is_actively_blocking) && (inAttack->flags & (1 << ONcAttackFlag_SpecialMove))) {
 				attack_result = ONcAttack_Hit;
 
 				// the super move penetrates through the block but loses half its effect
@@ -11869,6 +11973,12 @@ static const TRtAnimation *AttemptThrow(
 		goto exit;
 	}
 
+	if (ONrCharacter_IsBlocking(target)) {
+		ONrCharacter_BlockTrace("throw refused site=attempt target=%s", target->player_name);
+
+		goto exit;
+	}
+
 	target_active = ONrForceActiveCharacter(target);
 	if (target_active == NULL) {
 		goto exit;
@@ -11965,7 +12075,7 @@ static const TRtAnimation *RemapAnimationHook(ONtCharacter *ioCharacter, ONtActi
 				COrConsole_Printf("### RemapAnimationHook: AI %s tried to throw %s but facing delta %f > 45 degrees",
 								ioCharacter->player_name, target->player_name, specific_throw.facingOffset * M3cRadToDeg);
 
-			} else {
+			} else if (!ONrCharacter_IsBlocking(target)) {
 				// attempt the throw
 				AttemptSpecificThrow(ioCharacter, ioActiveCharacter, target, target_active,
 									MUmVector_GetDistanceSquared(ioCharacter->location, target->location),
@@ -11982,8 +12092,11 @@ static const TRtAnimation *RemapAnimationHook(ONtCharacter *ioCharacter, ONtActi
 				} else {
 					COrConsole_Printf("### RemapAnimationHook: AI %s tried to throw %s (%s/%s) but was unable to",
 									ioCharacter->player_name, target->player_name,
-									TMrInstance_GetInstanceName(throwanim), TMrInstance_GetInstanceName(specific_throw.dstThrow));
+									TMrInstance_GetInstanceName(throwanim), TMrInstance_GetInstanceName(desiredtargetanim));
 				}
+			} else {
+				ONrCharacter_BlockTrace("throw refused site=commit attacker=%s target=%s",
+										ioCharacter->player_name, target->player_name);
 			}
 		}
 

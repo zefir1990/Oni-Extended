@@ -1045,6 +1045,55 @@ exit:
 	return;
 }
 
+static UUtBool gBlockActionIsBound;
+static UUtBool gBlockDefaultKeyIsBound;
+static UUtUns32 gBlockDefaultKeyCode;
+
+static UUtBool ONiKeyConfig_SearchBlockBinding(UUtUns32 inBoundInput, UUtUns16 inActionType, UUtUns32 inUserParam)
+{
+	if (inActionType == LIc_Bit_Block) {
+		gBlockActionIsBound = UUcTrue;
+	}
+
+	if (inBoundInput == gBlockDefaultKeyCode) {
+		gBlockDefaultKeyIsBound = UUcTrue;
+	}
+
+	return (!(gBlockActionIsBound || gBlockDefaultKeyIsBound));
+}
+
+static void ONiKeyConfig_InstallDefaultBlockBinding(void)
+{
+	char key_name[] = "z";
+	UUtUns32 key_code;
+
+	key_code = LIrTranslate_InputName(key_name);
+
+	if (key_code == LIcKeyCode_None) {
+		return;
+	}
+
+	gBlockActionIsBound = UUcFalse;
+	gBlockDefaultKeyIsBound = UUcFalse;
+	gBlockDefaultKeyCode = key_code;
+
+	LIrBindings_Enumerate(ONiKeyConfig_SearchBlockBinding, 0);
+
+	if (gBlockActionIsBound) {
+		return;
+	}
+
+	if (gBlockDefaultKeyIsBound) {
+		UUrStartupMessage("[KeyConfig] block is unbound and %s is taken; bind a key to block", key_name);
+
+		return;
+	}
+
+	UUrStartupMessage("[KeyConfig] no key bound to block, binding %s", key_name);
+
+	LIrBinding_Add(key_code, "block");
+}
+
 static void KeyConfig(void)
 {
 #if TOOL_VERSION
@@ -1076,6 +1125,7 @@ static void KeyConfig(void)
 					"bind e to drop",
 					"bind f to punch",
 					"bind c to kick",
+					"bind z to block",
 					"",
 					"bind space to jump",
 					"bind mousebutton1 to fire1",
@@ -1126,6 +1176,7 @@ static void KeyConfig(void)
 		}
 
 		RunKeyConfigFile(key_config_path);
+		ONiKeyConfig_InstallDefaultBlockBinding();
 	}
 
 	return;

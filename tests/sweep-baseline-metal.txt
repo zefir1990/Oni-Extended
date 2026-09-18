@@ -39,19 +39,15 @@
 10 load level10 set-objective-n   # routine script console chatter
 10 load level10 start-room-n-particles   # routine script console chatter
 10 particles environment warning-character-ai-n-class-shinatama-has-no-hurt-sound-for-s   # retail data: missing hurt sound
-10 scripts Shin ai-n-going-inactive   # AI activity chatter from the settle
-10 scripts Shin ambush-striker-n-going-inactive   # AI activity chatter from the settle
 10 scripts all_music_counters elvis-has-left-the-building   # routine script console chatter
 10 scripts all_music_counters tctf-n-going-inactive   # AI activity chatter from the settle
 10 scripts detachcam konoko-dies   # routine script console chatter
 10 scripts intro ai-n-going-inactive   # AI activity chatter from the settle
-10 scripts main ai-n-going-inactive   # AI activity chatter from the settle
 10 scripts main chr-lock-active-failed-to-find-a-character-to-lock   # script ran outside normal game progression; sweep-context artifact
 10 scripts main func-s-file-s-line-n-character-char-n-has-no-physics-context   # script ran outside normal game progression; sweep-context artifact
 10 scripts main set-objective-n   # routine script console chatter
 10 scripts main start-room-n-particles   # routine script console chatter
 10 scripts main tctf-n-going-inactive   # AI activity chatter from the settle
-10 scripts main warning-character-ai-n-class-shinatama-has-no-hurt-sound-for-s   # retail data: missing hurt sound
 10 scripts outro chr-lock-active-failed-to-find-a-character-to-lock   # script ran outside normal game progression; sweep-context artifact
 10 scripts pipe1_music_off pipe-n-music-off   # routine script console chatter
 10 scripts pipe1b pipe-n-music-off   # routine script console chatter
@@ -67,7 +63,6 @@
 10 scripts pipe3 pipe-discharged   # routine script console chatter
 10 scripts pipe3b func-s-file-s-line-n-character-char-n-has-no-physics-context   # script ran outside normal game progression; sweep-context artifact
 10 scripts pipe3b tctf-n-going-inactive   # AI activity chatter from the settle
-10 scripts pipe3b warning-character-ai-n-class-shinatama-has-no-hurt-sound-for-s   # retail data: missing hurt sound
 10 scripts shin_dies deleting-characters-inside-trigger-volume-n   # routine script console chatter
 10 scripts shin_dies kaboom   # routine script console chatter
 10 scripts shin_dies konoko-lives   # routine script console chatter
@@ -83,7 +78,6 @@
 11 scripts all_music_counters stop-the-music   # routine script console chatter
 11 scripts main save-point-n   # save_game landing in the sandboxed persist.dat (#106)
 12 ai settle a-t-n-going-inactive   # AI activity chatter from the settle
-12 ai settle dieing-for-to-long-aborting   # AI death handling chatter during settle
 12 ai settle footstep-not-played-not-standing-on-ground   # animation chatter
 12 ai settle ninja-n-die   # AI death handling chatter during settle
 12 ai settle patrolscript-n   # routine script console chatter
@@ -208,11 +202,11 @@
 18 scripts spine3 b-s-n-going-inactive   # AI activity chatter from the settle
 18 scripts spine3 spine-n-start   # routine script console chatter
 18 scripts substation_monologue playkonokoline   # routine script console chatter
+19 ai settle b-eb-n-going-inactive   # AI activity chatter from the settle
 19 ai settle c-eb-n-going-inactive   # AI activity chatter from the settle
 19 ai settle c-sb-n-going-inactive   # AI activity chatter from the settle
 19 ai settle c-sr-n-going-inactive   # AI activity chatter from the settle
 19 ai settle c-tr-n-going-inactive   # AI activity chatter from the settle
-19 ai settle driverhurt   # routine script console chatter
 19 ai settle elicomcomb-k-k-k-no-attack-names-matching-s-found-in-character-class-elite-hard-n   # retail data: melee profile names attacks the class lacks
 19 ai settle footstep-not-played-not-standing-on-ground   # animation chatter
 19 ai settle parkstriker-going-inactive   # AI activity chatter from the settle
@@ -239,6 +233,7 @@
 19 scripts ParkRight ai-c-b-n-is-currently-passive-cannot-use-ai-dopath   # script ran outside normal game progression; sweep-context artifact
 19 scripts ParkRight ai-c-eb-n-is-currently-passive-cannot-use-ai-dopath   # script ran outside normal game progression; sweep-context artifact
 19 scripts ParkRight deleting-corpse-inside-trigger-volume-n   # routine script console chatter
+19 scripts ParkRight grifops-n-going-inactive   # AI activity chatter from the settle
 19 scripts Truck deleting-corpse-inside-trigger-volume-n   # routine script console chatter
 19 scripts Truck func-s-file-s-line-n-character-char-n-has-no-physics-context   # script ran outside normal game progression; sweep-context artifact
 19 scripts Truck obj-create-object-list-full-remaining-objects-skipped   # pool exhaustion under the sweep's cumulative load; warn-and-skip is the #107/#108 fix working
@@ -247,13 +242,18 @@
 19 scripts console_truckinfo modal-dialog-suppressed-id-n   # sweep-mode modal suppression (#109): dialog skipped, no player to dismiss it
 19 scripts deathfall grifops-n-going-inactive   # AI activity chatter from the settle
 19 scripts deathfall t-n   # routine script console chatter
+19 scripts dish footstep-not-played-not-standing-on-ground   # animation chatter
 19 scripts dish func-s-file-s-line-n-character-char-n-has-no-physics-context   # script ran outside normal game progression; sweep-context artifact
 19 scripts dish obj-create-object-list-full-remaining-objects-skipped   # pool exhaustion under the sweep's cumulative load; warn-and-skip is the #107/#108 fix working
+19 scripts dish t-n   # routine script console chatter
+19 scripts grif driverhurt   # routine script console chatter
 19 scripts grif grifelite-n-going-inactive   # AI activity chatter from the settle
+19 scripts intro footstep-not-played-not-standing-on-ground   # animation chatter
 19 scripts intro grifops-n-going-inactive   # AI activity chatter from the settle
 19 scripts main start   # routine script console chatter
 19 scripts music_battle c-sb-n-going-inactive   # AI activity chatter from the settle
 19 scripts music_battle music-battle   # routine script console chatter
+19 scripts music_guns t-n   # routine script console chatter
 19 scripts music_guns_stop c-sb-n-going-inactive   # AI activity chatter from the settle
 19 scripts music_guns_stop grifelite-n-going-inactive   # AI activity chatter from the settle
 19 scripts music_guns_timer obsolete-music-guns-timer   # routine script console chatter
@@ -263,14 +263,13 @@
 19 scripts purp2 deleting-corpse-inside-trigger-volume-n   # routine script console chatter
 19 scripts purp2 footstep-not-played-not-standing-on-ground   # animation chatter
 19 scripts purp2 func-s-file-s-line-n-character-char-n-has-no-physics-context   # script ran outside normal game progression; sweep-context artifact
+19 scripts purp2 shooter-dummy-going-inactive   # AI activity chatter from the settle
 19 scripts stop_music_truck death-n-a   # routine script console chatter
 19 scripts stop_music_truck footstep-not-played-not-standing-on-ground   # animation chatter
 19 scripts stop_music_truck func-s-file-s-line-n-semantic-error-function-s-does-not-exist   # retail BSL semantic error, present in shipped scripts
 19 scripts stop_music_truck round-n-a   # routine script console chatter
 19 scripts stop_music_truck round-n-b   # routine script console chatter
-19 scripts swat_dies footstep-not-played-not-standing-on-ground   # animation chatter
 19 scripts swat_dies muro-dummy-going-inactive   # AI activity chatter from the settle
-19 scripts swat_dies shooter-dummy-going-inactive   # AI activity chatter from the settle
 19 scripts target300 grifelite-n-going-inactive   # AI activity chatter from the settle
 19 scripts target300 muro-in-danger   # routine script console chatter
 19 scripts target300 target-dummy-going-inactive   # AI activity chatter from the settle
@@ -280,7 +279,6 @@
 19 scripts wait_to_help grifops-n-going-inactive   # AI activity chatter from the settle
 19 scripts xxx ai-c-b-n-is-currently-passive-cannot-use-ai-dopath   # script ran outside normal game progression; sweep-context artifact
 19 scripts xxx ai-c-eb-n-is-currently-passive-cannot-use-ai-dopath   # script ran outside normal game progression; sweep-context artifact
-19 scripts xxx ai-n-going-inactive   # AI activity chatter from the settle
 19 scripts xxx c-sr-n-going-inactive   # AI activity chatter from the settle
 19 scripts xxx deleting-corpse-inside-trigger-volume-n   # routine script console chatter
 2 ai settle ai-n-going-inactive   # AI activity chatter from the settle

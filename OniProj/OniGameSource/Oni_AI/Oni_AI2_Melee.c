@@ -3014,6 +3014,10 @@ static UUtBool AI2iMelee_WeightLocalMovement(ONtCharacter *ioCharacter, AI2tMele
 // check to see if the target is throwable
 static UUtBool AI2iMelee_TargetIsThrowable(ONtCharacter *ioCharacter, ONtActiveCharacter *ioActiveCharacter)
 {
+	if (ONrCharacter_IsBlocking(ioCharacter)) {
+		return UUcFalse;
+	}
+
 	if (ioCharacter->characterClass->knockdownResistant) {
 		return UUcFalse;
 	}
@@ -4319,6 +4323,8 @@ static void AI2iMelee_WeightTechnique(ONtCharacter *ioCharacter, AI2tMeleeState 
 					COrConsole_Printf_Color(UUcTrue, 0xFFFF9090, 0xFFFF3030, "  - can't do throwtype %s from state %s varient 0x%04X -> current 0",
 										ONrAnimTypeToString(TRrAnimation_GetType(move->target_animation)), ONrAnimStateToString(target_state), target_varient);
 #endif
+					ioTechnique->weight = 0;
+					return;
 				}
 
 				if (!AI2iMelee_TargetIsThrowable(ioMeleeState->target, active_target)) {
@@ -4329,6 +4335,8 @@ static void AI2iMelee_WeightTechnique(ONtCharacter *ioCharacter, AI2tMeleeState 
 #if DEBUG_VERBOSE_WEIGHTVAL
 					COrConsole_Printf_Color(UUcTrue, 0xFFFF9090, 0xFFFF3030, "  - target is unthrowable -> current 0");
 #endif
+					ioTechnique->weight = 0;
+					return;
 				}
 
 				/*
@@ -7994,6 +8002,11 @@ static UUtBool AI2iMelee_Throw_Update(ONtCharacter *ioCharacter, AI2tMeleeState 
 
 	// check that our target isn't invulnerable
 	if (!AI2iMelee_TargetIsThrowable(ioMeleeState->target, active_target)) {
+		if (ONrCharacter_IsBlocking(ioMeleeState->target)) {
+			ONrCharacter_BlockTrace("throw refused site=ai_abort attacker=%s target=%s",
+									ioCharacter->player_name, ioMeleeState->target->player_name);
+		}
+
 		AI2iMeleeState_AbortTechnique(ioCharacter, ioMeleeState);
 		return UUcTrue;
 	}
