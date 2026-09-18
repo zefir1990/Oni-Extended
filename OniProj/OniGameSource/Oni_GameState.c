@@ -1702,16 +1702,11 @@ static UUtBool HandleBlock(const ONtInputState *inInput, ONtCharacter *ioCharact
 	TRtAnimState block_source_state;
 	UUtBool is_neutral_stance;
 
-	if (!ONrCharacter_IsBlocking(ioCharacter)) {
+	if (!ONrCharacter_IsGuarding(ioCharacter)) {
 		if (ioActiveCharacter->curAnimType == ONcAnimType_Block) {
-			ONrCharacter_BlockTrace("guard dropped reason=%s", ioActiveCharacter->blocking ? "key-still-held" : "key-released");
+			ONrCharacter_BlockTrace("guard dropped reason=%s", ONrCharacter_IsBlocking(ioCharacter) ? "stunned" : "not-blocking");
 		}
 
-		return UUcFalse;
-	}
-
-	if ((ioActiveCharacter->hitStun > 0) || (ioActiveCharacter->staggerStun > 0) ||
-		(ioActiveCharacter->dizzyStun > 0)) {
 		return UUcFalse;
 	}
 

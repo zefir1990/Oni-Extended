@@ -1143,6 +1143,7 @@ UUtBool ONrCharacter_IsVictimAnimation(const ONtCharacter *inCharacter);
 UUtBool ONrCharacter_IsIdle(const ONtCharacter *inCharacter);
 UUtBool ONrCharacter_IsDefensive(const ONtCharacter *inCharacter);
 UUtBool ONrCharacter_IsBlocking(const ONtCharacter *inCharacter);
+UUtBool ONrCharacter_IsGuarding(const ONtCharacter *inCharacter);
 void ONrCharacter_BlockTrace(const char *inFormat, ...);
 UUtBool ONrCharacter_IsStill(const ONtCharacter *inCharacter);
 UUtBool ONrCharacter_IsMovingBack(const ONtCharacter *inCharacter);

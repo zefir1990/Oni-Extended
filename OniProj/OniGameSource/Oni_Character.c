@@ -4313,6 +4313,10 @@ static void ONrGameState_DoCharacterFrame(
 				active_character->inAirControl.velocity.y -= airConstants->jumpGravity;
 				active_character->inAirControl.velocity.y = UUmMax(active_character->inAirControl.velocity.y, airConstants->maxVelocity);
 			}
+			else if (ONrCharacter_IsGuarding(ioCharacter)) {
+				moved = MUgZeroVector;
+				moved.y -= ONrGameState_CalculateGravity(ioCharacter, active_character);
+			}
 			else if (active_character->stitch.stitching) {
 				float toAmt = ((float) active_character->stitch.itr) / ((float) active_character->stitch.count);
 				float fromAmt = 1 - toAmt;
@@ -7787,6 +7791,26 @@ UUtBool ONrCharacter_IsBlocking(const ONtCharacter *inCharacter)
 	}
 
 	if (active_character->hitStun > 0) {
+		return UUcFalse;
+	}
+
+	return UUcTrue;
+}
+
+UUtBool ONrCharacter_IsGuarding(const ONtCharacter *inCharacter)
+{
+	ONtActiveCharacter *active_character;
+
+	if (!ONrCharacter_IsBlocking(inCharacter)) {
+		return UUcFalse;
+	}
+
+	active_character = ONrGetActiveCharacter((ONtCharacter *) inCharacter);
+	if (active_character == NULL) {
+		return UUcFalse;
+	}
+
+	if ((active_character->staggerStun > 0) || (active_character->dizzyStun > 0)) {
 		return UUcFalse;
 	}
 
