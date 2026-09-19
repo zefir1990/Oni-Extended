@@ -42,6 +42,8 @@ typedef struct
 	UUtBool						rendererExplicit;
 	UUtBool						useSound;
 
+	UUtBool						noDamage;
+
 	/* Level sweep harness (#103). sweepMode is what makes sweepLevel
 	   meaningful — level 0 is a real level, so a zero here is ambiguous
 	   with the default on its own. */

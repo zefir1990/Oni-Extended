@@ -10662,7 +10662,8 @@ UUtBool ONrCharacter_IsUnstoppable(ONtCharacter *ioCharacter)
 
 UUtBool ONrCharacter_IsInvincible(ONtCharacter *ioCharacter)
 {
-	if (ONgPlayerInvincible && (ioCharacter->charType == ONcChar_Player)) {
+	if ((ioCharacter->charType == ONcChar_Player) &&
+		(ONgPlayerInvincible || ONgCommandLine.noDamage)) {
 		return UUcTrue;
 	}
 
@@ -12393,12 +12394,24 @@ void ONiOrientations_Verify(ONtCharacter *inCharacter, ONtActiveCharacter *ioAct
 	return;
 }
 
+static UUtBool
+iNoDamageLockApplies(
+	const ONtCharacter	*ioCharacter)
+{
+	return ((ioCharacter->charType == ONcChar_Player) && ONgCommandLine.noDamage);
+}
+
 void
 ONrCharacter_SetHitPoints(
 	ONtCharacter		*ioCharacter,
 	UUtUns32			inHitPoints)
 {
 	UUmAssert(ioCharacter);
+
+	if (iNoDamageLockApplies(ioCharacter))
+	{
+		return;
+	}
 
 	ioCharacter->hitPoints = inHitPoints;
 

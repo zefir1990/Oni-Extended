@@ -100,6 +100,7 @@ OniParseCommandLine(
 	ONgCommandLine.useMetal = UUcFalse;
 	ONgCommandLine.rendererExplicit = UUcFalse;
 	ONgCommandLine.useSound = UUcTrue;
+	ONgCommandLine.noDamage = UUcFalse;
 	ONgCommandLine.sweepMode = UUcFalse;
 	ONgCommandLine.sweepLevel = 0;
 	ONgCommandLine.sweepOutPath[0] = '\0';
@@ -115,6 +116,10 @@ OniParseCommandLine(
 		else if (0 == strcmp(current_parameter, "-nosound"))
 		{
 			ONgCommandLine.useSound = UUcFalse;
+		}
+		else if (0 == strcmp(current_parameter, "-nodamage"))
+		{
+			ONgCommandLine.noDamage = UUcTrue;
 		}
 		else if (0 == strcmp(current_parameter, "-ehalt"))
 		{
@@ -276,6 +281,8 @@ OniParseCommandLine(
 		UUrStartupMessage("renderer selection: %s (%s)",
 			ONgCommandLine.useMetal ? "Metal" : "OpenGL", renderer_source);
 	}
+
+	UUrStartupMessage("no damage: %s", ONgCommandLine.noDamage ? "on" : "off");
 
 	return UUcError_None;
 }
