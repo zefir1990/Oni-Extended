@@ -371,3 +371,141 @@ see the feature's internals without a debugger.
 headlessly, but every behaviour in the list above needs a human at the
 keyboard. See the session entry in [HISTORY.md](HISTORY.md) for exactly what
 was and was not checked.
+
+---
+
+## No damage
+
+Launch the game with `-nodamage` and Oni cannot be hurt. Health stays where it
+is for as long as the game runs — no punch, bullet, explosion, fall or poison
+takes anything off it.
+
+The game already has this as a cheat: type **liveforever** while you play and
+you become invincible. The catch is that it is cleared at the start of every
+level, so you retype it each time you finish a chapter. The flag is the same
+protection, without the retyping.
+
+### Using it
+
+Double-clicking the app cannot pass arguments, so launch it from the Terminal:
+
+```
+open -a Oni-Extended --args -nodamage
+```
+
+or run the binary inside the bundle directly:
+
+```
+/Applications/Oni-Extended.app/Contents/MacOS/Oni -nodamage
+```
+
+It combines with the other launch flags — `-metal`, `-nosound`, `-sweep` — in
+any order.
+
+To confirm the flag was actually read, check `startup.txt`, which records the
+resolved state on every launch:
+
+```
+no damage: on
+```
+
+The game ignores an argument it does not recognise without any message, so this
+line is the only thing that separates "the flag is on" from "the flag was never
+parsed". The file is written next to wherever you launched from, falling back to
+`~/Library/Logs/OniARM64/startup.txt`.
+
+### What it covers
+
+Every way the game can take health off you goes through one gate, and the flag
+holds that gate shut: melee, bullets and other weapon fire, particle weapons,
+explosions, landing and falling damage, poison, and the damage some throws do
+to the character being thrown.
+
+The health bar locks with it. The bar shows your health plus the hypos you are
+carrying, and the flag stops the hypo drain as well as the health loss, so the
+bar does not creep down while nothing appears to be hitting you.
+
+The value itself is locked too. Anything that writes to your health directly
+rather than by dealing damage — `chr_health` from the dev console,
+`chr_full_health` and `chr_set_health` from a level script — is refused while
+the flag is on, so nothing can move the number behind the damage gate's back.
+Healing still works, because it only ever moves the value up.
+
+### What it does not do
+
+- **You can still be knocked about.** Shots and blows still shove you and
+  knock-downs still land. You get up and keep fighting; you just never lose
+  health doing it. This is how the `liveforever` cheat has always behaved.
+- **It is not `unstoppable`.** Hit stun and staggers still apply, and a hit can
+  still knock your guard down.
+- **A shield belt still drains.** If you are carrying one, its meter empties as
+  it soaks hits. Your health is untouched either way.
+- **Scripts and the console cannot change your health either.** Level scripts
+  and the dev console write health directly rather than by dealing damage, and
+  while the flag is on those writes are refused for the player. `chr_health`,
+  `chr_full_health` and `chr_set_health` have no effect on you. The flag locks
+  the value, not just the damage path.
+- **It does not top you up.** It freezes health where it stands. Load a save
+  from a fight you were losing and you start at the health that save held.
+- **It is per launch.** Nothing is written to your config or your saves, so it
+  applies to the runs that pass it and to no others.
+- **Leaving the map no longer kills you.** The out-of-bounds kill is dealt as
+  damage, so with the flag on you fall instead of dying. Quit to get out.
+
+### For maintainers
+
+One flag, five edits: `UUtBool noDamage` on `ONtCommandLine` (`Oni.h`), its
+default, a `-nodamage` arm and a state line in `OniParseCommandLine` (`Oni.c`),
+the condition in `ONrCharacter_IsInvincible`, and the write guard in
+`ONrCharacter_SetHitPoints` (`Oni_Character.c`).
+
+**Why the predicate and not the damage site.** `ONrCharacter_TakeDamage` puts
+all of its work — health, pain, the hurt script, hypo drain — behind
+`if (!ONrCharacter_IsInvincible(ioCharacter))`. Hooking the predicate rather
+than the subtraction is what makes the health bar static: the bar is
+`hitPoints + inventory.hypoRemaining` (`Oni_InGameUI.c`), so a narrower guard
+around the subtraction alone would leave hypos draining and the bar visibly
+falling on a character who is taking no damage.
+
+**Knockback, the damage compass and the attacker's kill credit sit outside that
+gate**, as do the stun resets, the taunt window and `AI2rFight_AdjustForDamage`
+above it. That is deliberate rather than incidental: the AI still reads the hit
+as a hit, so enemies stay aggressive instead of losing interest in a player they
+cannot hurt, and what you get is `liveforever` semantics rather than a new set
+of them.
+
+**Why the command line rather than a player power.** `ONgPlayerInvincible` and
+its siblings are cleared in `ONrCharacter_LevelBegin`, so anything built on them
+has to be re-armed per level. `ONgCommandLine` is written once during parsing
+and never re-initialised, which is what makes the flag last the whole session.
+
+**`ONrCharacter_IsInvincible` has exactly one call site** — the damage gate — and
+the AI never reads it or `ONcCharacterFlag_Invincible`. Widening it for the
+player therefore cannot move AI behaviour, and the `charType == ONcChar_Player`
+test keeps it off every other character.
+
+**The lock is on the variable, not only on damage.** `ONrCharacter_SetHitPoints`
+is guarded too, which is what makes this a locked value rather than merely an
+immune one: `chr_health` and `chr_set_health` are the script and console route to
+health, and they are refused for the player while the flag is on. The guard is
+`iNoDamageLockApplies`, a file-local predicate stating the
+
+```c
+(ioCharacter->charType == ONcChar_Player) && ONgCommandLine.noDamage
+```
+
+test once and gives it a name, so the guard reads as the rule it enforces rather
+than as a bare field comparison. It never assigns a value — the number simply
+stops moving. Only the player is affected; scripts set AI health constantly and
+gating those would break the game.
+
+**A consequence worth knowing: a locked player cannot be killed at all.**
+`ONrCharacter_Die` is called from exactly one place — the `inHitPoints <= 0`
+branch of the function being guarded — and the damage route to death sits inside
+the invincibility gate. Refusing this write therefore closes the last route, and
+the revive path at `Oni_GameState.c:3608` that would otherwise be broken by the
+guard is unreachable instead. Nothing is soft-locked.
+
+**Healing is deliberately left alone.** `ONrCharacter_Heal` is not guarded,
+because it only ever moves the value up, and it is how pickups and the AI2 repair
+paths work. The lock stops writes that can take health away from you.

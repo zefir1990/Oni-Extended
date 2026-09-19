@@ -131,6 +131,17 @@ GitHub release notes and gets stamped with the version + date.
   way, so typing in it on a non-QWERTY layout gives you QWERTY letters; set
   `ONI_KEY_LAYOUT=1` if you'd rather have the old layout-based mapping back.
 
+### No damage
+- New `-nodamage` launch flag: start the game and Oni cannot be hurt. Health
+  stays where it is through bullets, punches, explosions, falls and poison. The
+  `liveforever` cheat already did this but is cleared at the start of every
+  level, so it has to be retyped each chapter; the flag holds for the whole
+  session. Launch with `open -a Oni-Extended --args -nodamage`. Shots still
+  knock you about and knock-downs still land — you just never lose health for
+  it. The value itself is locked, so console and script commands such as
+  `chr_health` and `chr_set_health` can no longer change your health either.
+  See [EXTENSIONS.md](EXTENSIONS.md#no-damage) for the fine print.
+
 ## 1.3.0r5 — 2026-07-17
 
 ### Campaign progress
